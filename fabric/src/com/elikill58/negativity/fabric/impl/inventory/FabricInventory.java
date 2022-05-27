@@ -8,49 +8,29 @@ import com.elikill58.negativity.api.inventory.NegativityHolder;
 import com.elikill58.negativity.api.inventory.PlatformHolder;
 import com.elikill58.negativity.api.item.ItemStack;
 import com.elikill58.negativity.api.item.Material;
+import com.elikill58.negativity.fabric.impl.inventory.holders.FabricNegativityHolder;
 import com.elikill58.negativity.fabric.impl.item.FabricItemStack;
 
 import net.minecraft.item.Item;
-import net.minecraft.screen.GenericContainerScreenHandler;
+import net.minecraft.item.Items;
 import net.minecraft.screen.ScreenHandler;
-import net.minecraft.screen.ScreenHandlerType;
 import net.minecraft.screen.slot.Slot;
 
 public class FabricInventory extends Inventory {
 
 	private final ScreenHandler inv;
-	private NegativityHolder holder;
+	private final String name;
+	private final FabricNegativityHolder holder;
 	
 	public FabricInventory(ScreenHandler inv) {
 		this.inv = inv;
-		this.holder = new FabricHolder();
+		this.name = null;
+		this.holder = new FabricNegativityHolder(null);
 	}
-	
-	public FabricInventory(String inventoryName, int size, NegativityHolder holder) {
-		this.holder = holder;
-		this.inv = new GenericContainerScreenHandler(getTypeForRow(size / 9), size, null, null, size / 9);
 
-		/*this.inv = org.spongepowered.api.item.inventory.Inventory.builder().withCarrier(this.holder)
-			.property(InventoryTitle.PROPERTY_NAME, new InventoryTitle(Text.of(inventoryName)))
-			.property(InventoryDimension.PROPERTY_NAME, new InventoryDimension(9, nbLine))
-			.property(Inv.INV_ID_KEY, Inv.NEGATIVITY_INV_ID)
-			.build(FabricNegativity.INSTANCE);*/
-	}
-	
-	private ScreenHandlerType<GenericContainerScreenHandler> getTypeForRow(int row) {
-		switch (row) {
-		case 1:
-			return ScreenHandlerType.GENERIC_9X1;
-		case 2:
-			return ScreenHandlerType.GENERIC_9X2;
-		case 3:
-			return ScreenHandlerType.GENERIC_9X3;
-		case 4:
-			return ScreenHandlerType.GENERIC_9X4;
-		case 5:
-			return ScreenHandlerType.GENERIC_9X5;
-		}
-		return ScreenHandlerType.GENERIC_9X6;
+	public FabricInventory(String inventoryName, int size, NegativityHolder holder) {
+		this.name = inventoryName;
+		this.inv = new NegativityScreenHandler(size, this.holder = new FabricNegativityHolder(holder));
 	}
 	
 	@Override
@@ -65,12 +45,12 @@ public class FabricInventory extends Inventory {
 
 	@Override
 	public void set(int slot, ItemStack item) {
-		inv.setStackInSlot(slot, inv.getRevision(), (net.minecraft.item.ItemStack) item.getDefault());
+		inv.getSlot(slot).setStack((net.minecraft.item.ItemStack) item.getDefault());
 	}
 
 	@Override
 	public void remove(int slot) {
-		inv.setStackInSlot(slot, inv.getRevision(), null);
+		inv.getSlot(slot).setStack(new net.minecraft.item.ItemStack(Items.AIR));
 	}
 
 	@Override
@@ -95,12 +75,12 @@ public class FabricInventory extends Inventory {
 
 	@Override
 	public String getInventoryName() {
-		return inv.toString();
+		return name;
 	}
 
 	@Override
 	public @Nullable PlatformHolder getHolder() {
-		return holder == null ? null : holder.getBasicHolder();
+		return holder;
 	}
 
 	@Override
