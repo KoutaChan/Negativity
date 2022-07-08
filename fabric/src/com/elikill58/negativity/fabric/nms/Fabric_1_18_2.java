@@ -9,12 +9,15 @@ import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInChat;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInEntityAction;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInEntityAction.EnumPlayerAction;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInFlying;
+import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInGround;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInHeldItemSlot;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInKeepAlive;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInLook;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInPong;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInPosition;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInPositionLook;
+import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInSteerVehicle;
+import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInTeleportAccept;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInUseEntity;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInUseEntity.EnumEntityUseAction;
 import com.elikill58.negativity.api.packets.packet.playout.NPacketPlayOutBlockBreakAnimation;
@@ -34,8 +37,10 @@ import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
 import net.minecraft.network.packet.c2s.play.KeepAliveC2SPacket;
 import net.minecraft.network.packet.c2s.play.PickFromInventoryC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
+import net.minecraft.network.packet.c2s.play.PlayerInputC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
+import net.minecraft.network.packet.c2s.play.TeleportConfirmC2SPacket;
 import net.minecraft.network.packet.c2s.query.QueryPingC2SPacket;
 import net.minecraft.network.packet.s2c.play.BlockBreakingProgressS2CPacket;
 import net.minecraft.network.packet.s2c.play.EntityPositionS2CPacket;
@@ -80,6 +85,10 @@ public class Fabric_1_18_2 extends FabricVersionAdapter {
 		});
 		packetsPlayIn.put(getNameOfPacket(PlayerMoveC2SPacket.OnGroundOnly.class), (p, f) -> {
 			PlayerMoveC2SPacket.OnGroundOnly packet = (PlayerMoveC2SPacket.OnGroundOnly) f;
+			return new NPacketPlayInGround(packet.isOnGround());
+		});
+		packetsPlayIn.put(getNameOfPacket(PlayerMoveC2SPacket.class), (p, f) -> {
+			PlayerMoveC2SPacket packet = (PlayerMoveC2SPacket) f;
 			float yaw = packet.getYaw(0);
 			float pitch = packet.getPitch(0);
 			return new NPacketPlayInFlying(packet.getX(0), packet.getY(0), packet.getZ(0), yaw, pitch,
@@ -90,10 +99,10 @@ public class Fabric_1_18_2 extends FabricVersionAdapter {
 				(p, f) -> new NPacketPlayInKeepAlive(((KeepAliveC2SPacket) f).getId()));
 		packetsPlayIn.put(getNameOfPacket(PlayerInteractEntityC2SPacket.class), (pa, f) -> {
 			PlayerInteractEntityC2SPacket p = (PlayerInteractEntityC2SPacket) f;
-			String action = getStr(f, "type");
-			Adapter.getAdapter().getLogger().warn("Entity use type: " + action);
+			Object action = get(f, "type");
+			Enum<?> actionType = getFromMethod(action, "getType");
 			return new NPacketPlayInUseEntity(p.getEntity(pa.getWorld()).getId(), new Vector(0, 0, 0),
-					EnumEntityUseAction.valueOf(action));
+					EnumEntityUseAction.valueOf(actionType.name()));
 		});
 		packetsPlayIn.put(getNameOfPacket(ClientCommandC2SPacket.class), (p, f) -> {
 			ClientCommandC2SPacket packet = (ClientCommandC2SPacket) f;
@@ -104,6 +113,12 @@ public class Fabric_1_18_2 extends FabricVersionAdapter {
 				(p, f) -> new NPacketPlayInPong(((QueryPingC2SPacket) f).getStartTime()));
 		packetsPlayIn.put(getNameOfPacket(PickFromInventoryC2SPacket.class),
 				(p, f) -> new NPacketPlayInHeldItemSlot(((PickFromInventoryC2SPacket) f).getSlot()));
+		packetsPlayIn.put(getNameOfPacket(PlayerInputC2SPacket.class), (p, f) -> {
+			PlayerInputC2SPacket packet = (PlayerInputC2SPacket) f;
+			return new NPacketPlayInSteerVehicle(packet.getSideways(), packet.getForward(), packet.isJumping(), packet.isSneaking());
+		});
+		packetsPlayIn.put(getNameOfPacket(TeleportConfirmC2SPacket.class), (p, f) -> new NPacketPlayInTeleportAccept(((TeleportConfirmC2SPacket) f).getTeleportId()));
+		
 
 		packetsPlayOut.put(getNameOfPacket(BlockBreakingProgressS2CPacket.class), (p, f) -> {
 			BlockBreakingProgressS2CPacket packet = (BlockBreakingProgressS2CPacket) f;

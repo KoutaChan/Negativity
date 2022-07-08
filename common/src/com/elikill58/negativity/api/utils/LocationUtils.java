@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
+import com.elikill58.negativity.api.block.BlockFace;
 import com.elikill58.negativity.api.entity.Entity;
 import com.elikill58.negativity.api.entity.EntityType;
 import com.elikill58.negativity.api.entity.Player;
@@ -25,7 +26,7 @@ public class LocationUtils {
 	public static boolean isBlockOfType(Location location, String... materials) {
 		String blockMaterial = location.getBlock().getType().getId().toUpperCase(Locale.ROOT);
 		for (String material : materials) {
-			if (blockMaterial.contains(material)) {
+			if (blockMaterial.contains(material.toUpperCase())) {
 				return true;
 			}
 		}
@@ -71,7 +72,7 @@ public class LocationUtils {
 	 */
 	public static boolean hasMaterialsAround(Location loc, String... ms) {
 		loc = loc.clone();
-		if (isBlockOfType(loc))
+		if (isBlockOfType(loc, ms))
 			return true;
 		if (isBlockOfType(loc.add(0, 0, 1), ms))
 			return true;
@@ -381,20 +382,20 @@ public class LocationUtils {
 						if (d5 == -0.0D)
 							d5 = -1.0E-4D;
 					}
-					Direction direction;
+					BlockFace direction;
 					if ((d3 < d4) && (d3 < d5)) {
-						direction = vecX > posX ? Direction.WEST : Direction.EAST;
+						direction = vecX > posX ? BlockFace.WEST : BlockFace.EAST;
 						vec3d = new Vector(d0, vec3d.getY() + d7 * d3, vec3d.getZ() + d8 * d3);
 					} else if (d4 < d5) {
-						direction = vecY > posY ? Direction.DOWN : Direction.UP;
+						direction = vecY > posY ? BlockFace.DOWN : BlockFace.UP;
 						vec3d = new Vector(vec3d.getX() + d6 * d4, d1, vec3d.getZ() + d8 * d4);
 					} else {
-						direction = vecZ > posZ ? Direction.NORTH : Direction.SOUTH;
+						direction = vecZ > posZ ? BlockFace.NORTH : BlockFace.SOUTH;
 						vec3d = new Vector(vec3d.getX() + d6 * d5, vec3d.getY() + d7 * d5, d2);
 					}
-					posX = UniversalUtils.floor(vec3d.getX()) - (direction == Direction.EAST ? 1 : 0);
-					posY = UniversalUtils.floor(vec3d.getY()) - (direction == Direction.UP ? 1 : 0);
-					posZ = UniversalUtils.floor(vec3d.getZ()) - (direction == Direction.SOUTH ? 1 : 0);
+					posX = UniversalUtils.floor(vec3d.getX()) - direction.getModX();
+					posY = UniversalUtils.floor(vec3d.getY()) - direction.getModY();
+					posZ = UniversalUtils.floor(vec3d.getZ()) - direction.getModZ();
 					vector = new Location(w, posX, posY, posZ);
 					if (!w.getBlockAt(vector).getType().equals(Materials.AIR)
 							&& hasMovingPosition(w, vector, vec3d, vec3d1)) {
@@ -478,7 +479,7 @@ public class LocationUtils {
 	}
 
 	public enum Direction {
-		NORTH, SOUTH, WEST, EAST, UP, DOWN
+		FRONT, BACK, LEFT, RIGHT, FRONT_LEFT, FRONT_RIGHT, BACK_LEFT, BACK_RIGHT
 	}
 
 	public static void teleportPlayerOnGround(Player p) {
@@ -491,5 +492,58 @@ public class LocationUtils {
 	public static boolean isInWater(Location loc) {
 		return loc.getBlock().isLiquid() || loc.clone().add(0, -1, 0).getBlock().isLiquid()
 				|| loc.clone().add(0, 1, 0).getBlock().isLiquid();
+	}
+
+	/**
+	 * Get the arrow of the direction from the player to the given location
+	 * 
+	 * @param p the player which is requiring for direction
+	 * @param loc the direction
+	 * @return the arrow already parsed
+	 */
+	@Deprecated
+	public static double getAngleTo(Player p, Location loc) {
+		Location position = p.getLocation();
+		Vector a = loc.clone().sub(position).toVector().normalize();
+		Vector b = position.getDirection();
+		double angle = Math.toDegrees(Math.acos(a.dot(b)));
+		return (angle < 0) ? (360 + angle) : angle;
+	}
+
+	public static Direction getDirection(Player p, Location loc) {
+		Location playerLocation = p.getLocation();
+		Vector locVector = loc.toVector().subtract(playerLocation.toVector());
+		
+		double locAngle = Math.atan2(locVector.getZ(), locVector.getX());
+		double playerAngle = Math.atan2(playerLocation.getDirection().getZ(), playerLocation.getDirection().getX());
+		
+		double angle = playerAngle - locAngle;
+		
+		while (angle > Math.PI) {
+		    angle = angle - 2 * Math.PI;
+		}
+		
+		while (angle < -Math.PI) {
+		    angle = angle + 2 * Math.PI;
+		}
+		
+		if (angle < -2.749 || angle >= 2.749) { // -7/8 pi
+		    return Direction.BACK;
+		} else if (angle < -1.963) { // -5/8 pi
+		    return Direction.BACK_RIGHT;
+		} else if (angle < -1.178) { // -3/8 pi
+		    return Direction.RIGHT;
+		} else if (angle < -0.393) { // -1/8 pi
+		    return Direction.FRONT_RIGHT;
+		} else if (angle < 0.393) { // 1/8 pi
+		    return Direction.FRONT;
+		} else if (angle < 1.178) { // 3/8 pi
+		    return Direction.FRONT_LEFT;
+		} else if (angle < 1.963) { // 5/8 p
+		    return Direction.LEFT;
+		} else if (angle < 2.749) { // 7/8 pi
+		    return Direction.BACK_LEFT;
+		}
+		return null;
 	}
 }

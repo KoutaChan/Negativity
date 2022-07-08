@@ -46,6 +46,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import com.elikill58.negativity.api.yaml.Configuration;
 import com.elikill58.negativity.api.yaml.YamlConfiguration;
 import com.elikill58.negativity.universal.Adapter;
+import com.elikill58.negativity.universal.bedrock.BedrockPlayerManager;
 import com.elikill58.negativity.universal.detections.Cheat;
 import com.elikill58.negativity.universal.detections.Special;
 
@@ -110,13 +111,6 @@ public class UniversalUtils {
 		return Optional.empty();
 	}
 
-	public static Optional<Cheat> getCheatFromName(String s) {
-		for (Cheat c : Cheat.values())
-			if (c.getName().equalsIgnoreCase(s))
-				return Optional.of(c);
-		return Optional.empty();
-	}
-
 	public static Optional<Cheat> getCheatFromItem(Object m) {
 		for (Cheat c : Cheat.values())
 			if (c.getMaterial().equals(m))
@@ -159,9 +153,27 @@ public class UniversalUtils {
 		}
 	}
 
+	public static boolean isDouble(String s) {
+		try {
+			Double.parseDouble(s);
+			return true;
+		} catch (IllegalArgumentException e) {
+			return false;
+		}
+	}
+
 	public static boolean isLong(String s) {
 		try {
 			Long.parseLong(s);
+			return true;
+		} catch (IllegalArgumentException e) {
+			return false;
+		}
+	}
+
+	public static boolean isUUID(String s) {
+		try {
+			UUID.fromString(s);
 			return true;
 		} catch (IllegalArgumentException e) {
 			return false;
@@ -240,6 +252,11 @@ public class UniversalUtils {
 	}
 
 	public static CompletableFuture<@Nullable String> requestMcleaksData(String uuid) {
+		if(isUUID(uuid)) {
+			UUID id = UUID.fromString(uuid);
+			if(BedrockPlayerManager.isBedrockPlayer(id))
+				return CompletableFuture.supplyAsync(() -> "{ \"isMcleaks\": false }");
+		}
 		return CompletableFuture.supplyAsync(() -> {
 			Optional<String> optContent = getContentFromURL("https://mcleaks.themrgong.xyz/api/v3/isuuidmcleaks/" + uuid);
 			if(optContent.isPresent()) {

@@ -99,15 +99,14 @@ public class PacketListener implements Listeners {
 						EventManager.callEvent(event);
 						if(event.isCancelled())
 							packet.setCancelled(event.isCancelled());
-						np.lastHittedEntitty = entity;
-						if(entity instanceof Player)
-							NegativityPlayer.getNegativityPlayer((Player) entity).lastHitByEntity = p;
 					}
 				}
 			}
 		} else if (type == PacketType.Client.KEEP_ALIVE || type == PacketType.Client.POSITION) {
 			np.isAttacking = false;
 			p.applyTheoricVelocity();
+		} else if (type == PacketType.Client.STEER_VEHICLE) {
+			np.timeInvincibility = System.currentTimeMillis() + p.getPing() * 2;
 		} else if (type == PacketType.Client.PONG) {
 			NPacketPlayInPong pong = (NPacketPlayInPong) packet.getPacket();
 			if(np.idWaitingAppliedVelocity != -1 && np.idWaitingAppliedVelocity == pong.id) {
@@ -126,7 +125,7 @@ public class PacketListener implements Listeners {
 		Player p = e.getPlayer();
 		PacketType type = e.getPacket().getPacketType();
 		NegativityPlayer np = NegativityPlayer.getNegativityPlayer(p);
-		if(type.equals(PacketType.Server.POSITION))
+		if(type.equals(PacketType.Server.POSITION) || type.equals(PacketType.Server.ENTITY_TELEPORT))
 			np.isTeleporting = true;
 		else if(type.equals(PacketType.Server.ENTITY_VELOCITY)) {
 			NPacketPlayOutEntityVelocity packet = (NPacketPlayOutEntityVelocity) e.getPacket().getPacket();

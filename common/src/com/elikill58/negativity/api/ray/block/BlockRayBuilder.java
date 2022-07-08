@@ -6,22 +6,16 @@ import java.util.List;
 
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import com.elikill58.negativity.api.NegativityPlayer;
 import com.elikill58.negativity.api.entity.Entity;
 import com.elikill58.negativity.api.entity.Player;
 import com.elikill58.negativity.api.item.Material;
 import com.elikill58.negativity.api.location.Location;
 import com.elikill58.negativity.api.location.Vector;
-import com.elikill58.negativity.api.location.World;
-import com.elikill58.negativity.api.ray.block.BlockRay.RaySearch;
+import com.elikill58.negativity.api.ray.AbstractRayBuilder;
 
-public class BlockRayBuilder {
+public class BlockRayBuilder extends AbstractRayBuilder<BlockRayBuilder, BlockRay>{
 
-	private final World w;
-	private final Location position;
-	private RaySearch search = RaySearch.TYPE_NOT_AIR;
-	private Vector vector = Vector.ZERO;
-	private int maxDistance = 10;
+	private BlockRaySearch search = BlockRaySearch.TYPE_NOT_AIR;
 	protected Material[] filter = new Material[0], neededType = new Material[0];
 	protected List<Vector> positions = new ArrayList<>();
 	
@@ -32,28 +26,16 @@ public class BlockRayBuilder {
 	 * @param entity which will give the rotation (and so the vector)
 	 */
 	public BlockRayBuilder(Location position, @Nullable Entity entity) {
-		if(entity instanceof Player) {
-			Player p = (Player) entity;
-			this.position = position.clone().add(0, (p.isSneaking() ? (NegativityPlayer.getNegativityPlayer(p).isBedrockPlayer() ? 1.75 : 1.5) : 1.8), 0);
-		} else
-			this.position = position.clone().add(0, 0.5, 0); // TODO manage all entities
-		this.w = position.getWorld();
-		if(entity != null)
-			this.vector = entity.getRotation();
+		super(position, entity);
 	}
 	
 	/**
 	 * Create a new BlockRayBuilder
 	 * 
-	 * @param position the started position of ray
-	 * @param entity which will give the rotation (and so the vector)
+	 * @param p the player where the ray start
 	 */
 	public BlockRayBuilder(Player p) {
-		NegativityPlayer np = NegativityPlayer.getNegativityPlayer(p);
-		Location loc = np.lastLocations.size() < 2 ? p.getLocation() : np.lastLocations.get(np.lastLocations.size() - 2);
-		this.position = loc.clone().add(0, (p.isSneaking() ? (np.isBedrockPlayer() ? 1.75 : 1.5) : 1.8), 0);
-		this.w = position.getWorld();
-		this.vector = p.getRotation();
+		super(p);
 	}
 	
 	/**
@@ -63,9 +45,7 @@ public class BlockRayBuilder {
 	 * @param vector the direction vector
 	 */
 	public BlockRayBuilder(Location position, Vector vector) {
-		this.position = position;
-		this.w = position.getWorld();
-		this.vector = vector;
+		super(position, vector);
 	}
 	
 	/**
@@ -75,7 +55,7 @@ public class BlockRayBuilder {
 	 * @return this builder
 	 */
 	public BlockRayBuilder ignoreAir(boolean air) {
-		this.search = RaySearch.TYPE_NOT_AIR;
+		this.search = BlockRaySearch.TYPE_NOT_AIR;
 		return this;
 	}
 	
@@ -88,18 +68,7 @@ public class BlockRayBuilder {
 	 */
 	public BlockRayBuilder neededType(Material... type) {
 		this.neededType = type;
-		this.search = RaySearch.TYPE_SPECIFIC;
-		return this;
-	}
-	
-	/**
-	 * Edit the vector which correspond to ray direction
-	 * 
-	 * @param vec the new direction vector
-	 * @return this builder
-	 */
-	public BlockRayBuilder vector(Vector vec) {
-		this.vector = vec;
+		this.search = BlockRaySearch.TYPE_SPECIFIC;
 		return this;
 	}
 	
@@ -117,7 +86,7 @@ public class BlockRayBuilder {
 	/**
 	 * Add searched position.
 	 * 
-	 * @param loc searched positions
+	 * @param vec searched positions
 	 * @return this builder
 	 */
 	public BlockRayBuilder neededPositions(Vector... vec) {
@@ -127,23 +96,12 @@ public class BlockRayBuilder {
 	/**
 	 * Add searched position.
 	 * 
-	 * @param loc searched positions
+	 * @param vec searched positions
 	 * @return this builder
 	 */
 	public BlockRayBuilder neededPositions(List<Vector> vec) {
 		this.positions.addAll(vec);
-		this.search = RaySearch.POSITION;
-		return this;
-	}
-
-	/**
-	 * Change the max ray distance
-	 * 
-	 * @param max the max distance of ray
-	 * @return this builder
-	 */
-	public BlockRayBuilder maxDistance(int max) {
-		this.maxDistance = max;
+		this.search = BlockRaySearch.POSITION;
 		return this;
 	}
 	

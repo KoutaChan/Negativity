@@ -1,5 +1,6 @@
 package com.elikill58.negativity.spigot;
 
+import java.time.Duration;
 import java.util.function.Consumer;
 
 import org.bukkit.Bukkit;
@@ -41,13 +42,15 @@ public class SpigotScheduler implements Scheduler {
 	}
 	
 	@Override
-	public ScheduledTask runRepeatingAsync(Runnable task, int intervalTicks, @Nullable String name) {
-		return new TaskWrapper(Bukkit.getScheduler().runTaskTimerAsynchronously(this.plugin, task, 0, intervalTicks));
+	public ScheduledTask runDelayed(Runnable task, int delayTicks) {
+		return new TaskWrapper(Bukkit.getScheduler().runTaskLater(this.plugin, task, delayTicks));
 	}
 	
 	@Override
-	public ScheduledTask runDelayed(Runnable task, int delayTicks) {
-		return new TaskWrapper(Bukkit.getScheduler().runTaskLater(this.plugin, task, delayTicks));
+	public ScheduledTask runRepeatingAsync(Runnable task, Duration delay, Duration interval, @Nullable String name) {
+		long delayTicks = (delay.toMillis() * 20) / 1000;
+		long intervalTicks = (interval.toMillis() * 20) / 1000;
+		return new TaskWrapper(Bukkit.getScheduler().runTaskTimerAsynchronously(this.plugin, task, delayTicks, intervalTicks));
 	}
 	
 	private static class TaskWrapper implements ScheduledTask {

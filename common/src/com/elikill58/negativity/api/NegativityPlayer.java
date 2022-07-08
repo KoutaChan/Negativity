@@ -1,8 +1,5 @@
 package com.elikill58.negativity.api;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -10,7 +7,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import com.elikill58.negativity.api.entity.Entity;
 import com.elikill58.negativity.api.entity.IronGolem;
@@ -24,6 +24,8 @@ import com.elikill58.negativity.api.location.Location;
 import com.elikill58.negativity.api.packets.PacketType;
 import com.elikill58.negativity.api.potion.PotionEffect;
 import com.elikill58.negativity.api.protocols.CheckProcessor;
+import com.elikill58.negativity.common.protocols.InventoryMove.InventoryMoveData;
+import com.elikill58.negativity.common.protocols.checkprocessor.PingSpoofCheckProcessor;
 import com.elikill58.negativity.common.protocols.checkprocessor.ScaffoldRiseCheckProcessor;
 import com.elikill58.negativity.universal.Adapter;
 import com.elikill58.negativity.universal.FlyingReason;
@@ -40,14 +42,11 @@ import com.elikill58.negativity.universal.detections.Cheat.CheatCategory;
 import com.elikill58.negativity.universal.detections.Cheat.CheatDescription;
 import com.elikill58.negativity.universal.detections.Cheat.CheatHover;
 import com.elikill58.negativity.universal.detections.keys.CheatKeys;
-import com.elikill58.negativity.universal.file.FileHandle;
-import com.elikill58.negativity.universal.file.FileSaverAction;
-import com.elikill58.negativity.universal.file.FileSaverTimer;
 import com.elikill58.negativity.universal.playerModifications.PlayerModificationsManager;
 import com.elikill58.negativity.universal.report.ReportType;
 import com.elikill58.negativity.universal.utils.UniversalUtils;
 
-public class NegativityPlayer implements FileSaverAction {
+public class NegativityPlayer {
 
 	private static final Map<UUID, NegativityPlayer> PLAYERS = Collections.synchronizedMap(new ConcurrentHashMap<UUID, NegativityPlayer>());
 
@@ -55,7 +54,7 @@ public class NegativityPlayer implements FileSaverAction {
 	private final Player p;
 
 	public ArrayList<CheckProcessor> checkProcessors = new ArrayList<>();
-	public ArrayList<String> proof = new ArrayList<>();
+	//public ArrayList<String> proof = new ArrayList<>();
 	public HashMap<CheatKeys, List<PlayerCheatAlertEvent>> alertNotShowed = new HashMap<>();
 	public HashMap<String, String> mods = new HashMap<>();
 	
@@ -71,9 +70,8 @@ public class NegativityPlayer implements FileSaverAction {
 	public List<PotionEffect> potionEffects = new ArrayList<>();
 	
 	// detection and bypass
-	public long timeInvincibility = 0, timeLastMessage = 0, timeStartFakePlayer = 0, lastBlockBreak = 0, lastBlockPlace = 0, lastRegen = 0, timeReport = 0,
-			otherKeepAliveTime = 0, timeLastMove = 0;
-	public int LAST_CHAT_MESSAGE_NB = 0, fakePlayerTouched = 0, bypassSpeed = 0, spiderSameDist = 0;
+	public long timeInvincibility = 0, timeLastMessage = 0, otherKeepAliveTime = 0;
+	public int LAST_CHAT_MESSAGE_NB = 0, bypassSpeed = 0, spiderSameDist = 0;
 	public int rightBlockClick = 0, leftBlockClick = 0, entityClick = 0, leftCancelled = 0, leftFinished = 0;
 	public FlyingReason flyingReason = FlyingReason.REGEN;
 	public boolean bypassBlink = false, isOnLadders = false, useAntiNoFallSystem = false, isTeleporting = false;
@@ -83,6 +81,7 @@ public class NegativityPlayer implements FileSaverAction {
 	public Location lastSpiderLoc = null;
 	public PacketType otherKeepAlivePacket = PacketType.Client.FLYING;
 	public List<Location> lastLocations = new ArrayList<>();
+	public InventoryMoveData invMoveData;
 	
 	// content
 	public Content<List<Location>> listLocations = new Content<>();
@@ -100,13 +99,11 @@ public class NegativityPlayer implements FileSaverAction {
 	
 	// general values
 	public boolean isInFight = false, already_blink = false, isFreeze = false, isUsingSlimeBlock = false,
-			mustToBeSaved = false, isInvisible = false, isAttacking = false, shouldCheckSensitivity = true;
+			isInvisible = false, isAttacking = false, shouldCheckSensitivity = true;
 	private boolean isBedrockPlayer = false;
 	public double sensitivity = 0.0;
 	private String clientName;
-	private ScheduledTask fightCooldownTask;
-	private FileHandle proofFileHandler;
-	public Entity lastHittedEntitty = null, lastHitByEntity = null;
+	private @Nullable ScheduledTask fightCooldownTask;
 
 	public NegativityPlayer(Player p) {
 		this.p = p;
@@ -121,6 +118,7 @@ public class NegativityPlayer implements FileSaverAction {
 		
 		// add processors like this: checkProcessors.add(new SpiderExampleCheckProcessor(this));
 		checkProcessors.add(new ScaffoldRiseCheckProcessor(this));
+		checkProcessors.add(new PingSpoofCheckProcessor(this));
 		checkProcessors.forEach(CheckProcessor::begin);
 	}
 
@@ -265,6 +263,8 @@ public class NegativityPlayer implements FileSaverAction {
 	}
 	
 	public Location getPingedLocation() {
+		if(lastLocations.isEmpty())
+			return p.getLocation();
 		int ping = p.getPing();
 		int nbLast = (int) (ping / 50);
 		if(lastLocations.size() <= nbLast)
@@ -286,28 +286,21 @@ public class NegativityPlayer implements FileSaverAction {
 	}
 
 	/**
-	 * Add one warn to the given cheat
-	 * 
-	 * @param c the cheat which create alert
-	 * @param reliability the reliability of alert
-	 */
-	public void addWarn(Cheat c, int reliability) {
-		addWarn(c, reliability, 1);
-	}
-
-	/**
 	 * Add multiple warn
 	 * 
 	 * @param c the cheat which create alert
 	 * @param reliability the reliability of all warn
 	 * @param amount the amount of alert
+	 * @return old warn amount or -1 if nothing added
 	 */
-	public void addWarn(Cheat c, int reliability, long amount) {
+	public long addWarn(Cheat c, int reliability, long amount) {
 		if (System.currentTimeMillis() < timeInvincibility || c.getReliabilityAlert() > reliability)
-			return;
+			return -1;
 		NegativityAccount account = getAccount();
-		account.setWarnCount(c, account.getWarn(c) + amount);
-		mustToBeSaved = true;
+		long old = account.getWarn(c);
+		account.setWarnCount(c, old + amount);
+		Adapter.getAdapter().getAccountManager().save(getUUID());
+		return old;
 	}
 
 	/**
@@ -344,60 +337,6 @@ public class NegativityPlayer implements FileSaverAction {
 		if(!n.contains(c.getName()))
 			n = n + (n.equals("") ? "" : ", ") + c.getName();
 		return n;
-	}
-
-	/**
-	 * Log the given message into proof file
-	 * 
-	 * @param msg the proof message
-	 */
-	public void logProof(String msg) {
-		proof.add(msg);
-		FileSaverTimer.getInstance().addAction(this);
-	}
-	
-	/**
-	 * Save proof and account manager if need to be saved
-	 */
-	public void saveAccount() {
-		if(mustToBeSaved) {
-			mustToBeSaved = false;
-			Adapter.getAdapter().getAccountManager().save(getUUID());
-		}
-	}
-	
-	public void checkProofFileHandler() {
-		if(proofFileHandler != null && proofFileHandler.shouldBeClosed()) {
-			proofFileHandler.close();
-			proofFileHandler = null;
-		}
-	}
-	
-	public FileHandle getOrCreateProofFileHandler() throws IOException {
-		if(proofFileHandler == null || proofFileHandler.isClosed()) {
-			Path proofFile = Adapter.getAdapter().getDataFolder().toPath().resolve("user").resolve("proof").resolve(getUUID() + ".txt");
-			if(!Files.exists(proofFile))
-				Files.createFile(proofFile);
-			proofFileHandler = new FileHandle(proofFile);
-		}
-		return proofFileHandler;
-	}
-	
-	@Override
-	public void save(FileSaverTimer timer) {
-		if (proof.isEmpty()) {
-	    	timer.removeActionRunning();
-			return;
-		}
-		
-		try {
-			getOrCreateProofFileHandler().write(proof);
-			proof.clear();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-
-    	timer.removeActionRunning();
 	}
 	
 	/**
@@ -460,12 +399,11 @@ public class NegativityPlayer implements FileSaverAction {
 	 */
 	public void destroy() {
 		checkProcessors.forEach(CheckProcessor::stop);
-		save(FileSaverTimer.getInstance());
-		if(proofFileHandler != null && !proofFileHandler.isClosed())
-			proofFileHandler.close();
-		NegativityAccountManager accountManager = Adapter.getAdapter().getAccountManager();
-		accountManager.save(playerId).join();
-		accountManager.dispose(playerId);
+		CompletableFuture.runAsync(() -> {
+			NegativityAccountManager accountManager = Adapter.getAdapter().getAccountManager();
+			accountManager.save(playerId).join();
+			accountManager.dispose(playerId);
+		}).join();
 	}
 
 	/**
@@ -475,7 +413,7 @@ public class NegativityPlayer implements FileSaverAction {
 		isInFight = true;
 		if (fightCooldownTask != null)
 			fightCooldownTask.cancel();
-		fightCooldownTask = Scheduler.getInstance().runRepeating(this::unfight, 100);
+		fightCooldownTask = Scheduler.getInstance().runDelayed(this::unfight, 100);
 	}
 
 	/**
@@ -483,6 +421,10 @@ public class NegativityPlayer implements FileSaverAction {
 	 */
 	public void unfight() {
 		isInFight = false;
+		if (fightCooldownTask != null) {
+			fightCooldownTask.cancel();
+			fightCooldownTask = null;
+		}
 	}
 	
 	/**

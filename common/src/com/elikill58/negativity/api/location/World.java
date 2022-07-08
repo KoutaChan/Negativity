@@ -48,7 +48,7 @@ public abstract class World implements NegativityObject {
 	 * Return a block with AIR type if not found
 	 * Can create error if world not loaded AND loading it async
 	 * 
-	 * @param loc the block location
+	 * @param v the block vector position
 	 * @return the founded block
 	 */
 	public Block getBlockAt(Vector v) {
@@ -112,4 +112,12 @@ public abstract class World implements NegativityObject {
 	 * @return true if pvp is enabled
 	 */
 	public abstract boolean isPVP();
+	
+	@Override
+	public boolean equals(Object obj) {
+		if(!(obj instanceof World))
+			return false;
+		World w = (World) obj;
+		return getName().equals(w.getName()) || getDefault().equals(w.getDefault());
+	}
 }

@@ -4,11 +4,14 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 
+import org.checkerframework.checker.nullness.qual.Nullable;
+
+import com.elikill58.negativity.api.IKey;
 import com.elikill58.negativity.api.entity.Player;
 import com.elikill58.negativity.universal.Adapter;
 import com.elikill58.negativity.universal.utils.UniversalUtils;
 
-public class WebhookMessage {
+public class WebhookMessage implements Comparable<WebhookMessage> {
 
 	protected final WebhookMessageType messageType;
 	protected final String sender;
@@ -60,17 +63,21 @@ public class WebhookMessage {
 		return placeholders;
 	}
 	
+	public long getDate() {
+		return date;
+	}
+	
 	/**
 	 * Apply all placeholders available for this message
 	 * 
-	 * @param message the raw memssage
+	 * @param message the raw message
 	 * @return the given message with all replaced object
 	 */
 	public String applyPlaceHolders(String message) {
 		Adapter ada = Adapter.getAdapter();
 		String sDate = UniversalUtils.GENERIC_DATE_TIME_FORMATTER.format(LocalDateTime.ofInstant(Instant.ofEpochMilli(date), ZoneId.systemDefault()));
 		return UniversalUtils.replacePlaceholders(UniversalUtils.replacePlaceholders(message, getPlaceholders()), "%date%", sDate, "%name%", concerned.getName(),
-				"%uuid%", concerned.getUniqueId().toString(), "%ip%", concerned.getIP(), "%sender%", sender,
+				"%uuid%", concerned.getUniqueId(), "%ip%", concerned.getIP(), "%sender%", sender,
 				"%server_name%", concerned.getServerName(), "%player_version%", concerned.getPlayerVersion().getName(),
 				"%server_version%", ada.getServerVersion().getName(), "%tps%", String.format("%.3f", ada.getLastTPS()),
 				"%ping%", concerned.getPing(), "%world%", concerned.getWorld() != null ? concerned.getWorld().getName() : "-");
@@ -82,7 +89,7 @@ public class WebhookMessage {
 	 * @param msg the message to add
 	 * @return the combined object, or null if not combined
 	 */
-	public WebhookMessage combine(WebhookMessage msg) {
+	public @Nullable WebhookMessage combine(WebhookMessage msg) {
 		return null;
 	}
 	
@@ -95,7 +102,12 @@ public class WebhookMessage {
 		return false;
 	}
 	
-	public static enum WebhookMessageType {
+	@Override
+	public int compareTo(WebhookMessage o) {
+		return (int) (o.date - date);
+	}
+	
+	public static enum WebhookMessageType implements IKey<WebhookMessageType> {
 		ALERT,
 		BAN,
 		KICK,

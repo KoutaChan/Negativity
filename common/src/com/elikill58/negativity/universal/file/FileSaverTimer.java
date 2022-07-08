@@ -5,13 +5,14 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.elikill58.negativity.api.NegativityPlayer;
 import com.elikill58.negativity.universal.Adapter;
 
 public class FileSaverTimer implements Runnable {
 
 	private static FileSaverTimer instance;
 	public static FileSaverTimer getInstance() {
+		if(instance == null)
+			instance = new FileSaverTimer();
 		return instance;
 	}
 	private static final int MAX_RUNNING = 10, SKIP_WHEN_ALREADY = 2;
@@ -27,7 +28,6 @@ public class FileSaverTimer implements Runnable {
     		Adapter.getAdapter().getLogger().error("Another instance of FileSaveTimer is created even if an old already exist");
     		return;
     	}
-    	instance = this;
     }
     
     @Override
@@ -47,7 +47,6 @@ public class FileSaverTimer implements Runnable {
         
         // now check for old handle
         new ArrayList<>(FileHandle.getFileHandles()).stream().filter(FileHandle::shouldBeClosed).forEach(FileHandle::close);
-        NegativityPlayer.getAllNegativityPlayers().forEach(NegativityPlayer::checkProofFileHandler);
     }
     
     public void runAll() {

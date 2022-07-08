@@ -28,9 +28,11 @@ import com.elikill58.negativity.spigot.impl.item.SpigotItemStack;
 import com.elikill58.negativity.spigot.impl.location.SpigotLocation;
 import com.elikill58.negativity.spigot.impl.location.SpigotWorld;
 import com.elikill58.negativity.spigot.nms.SpigotVersionAdapter;
+import com.elikill58.negativity.spigot.utils.Utils;
 import com.elikill58.negativity.universal.Adapter;
 import com.elikill58.negativity.universal.Version;
 import com.elikill58.negativity.universal.multiVersion.PlayerVersionManager;
+import com.elikill58.negativity.universal.permissions.Perm;
 import com.google.common.io.ByteArrayDataOutput;
 import com.google.common.io.ByteStreams;
 
@@ -408,11 +410,19 @@ public class SpigotPlayer extends SpigotEntity<org.bukkit.entity.Player> impleme
 	public void setVanished(boolean vanished) {
 		if (vanished) {
 			for (Player other : Adapter.getAdapter().getOnlinePlayers()) {
-				((org.bukkit.entity.Player) other.getDefault()).hidePlayer(entity);
+				if(Perm.hasPerm(other, Perm.ADMIN))
+					continue;
+				if(Version.getVersion().isNewerOrEquals(Version.V1_13))
+					((org.bukkit.entity.Player) other.getDefault()).hidePlayer(SpigotNegativity.getInstance(), entity);
+				else
+					((org.bukkit.entity.Player) other.getDefault()).hidePlayer(entity);
 			}
 		} else {
 			for (Player other : Adapter.getAdapter().getOnlinePlayers()) {
-				((org.bukkit.entity.Player) other.getDefault()).showPlayer(entity);
+				if(Version.getVersion().isNewerOrEquals(Version.V1_13))
+					((org.bukkit.entity.Player) other.getDefault()).showPlayer(SpigotNegativity.getInstance(), entity);
+				else
+					((org.bukkit.entity.Player) other.getDefault()).showPlayer(entity);
 			}
 		}
 	}
@@ -432,7 +442,7 @@ public class SpigotPlayer extends SpigotEntity<org.bukkit.entity.Player> impleme
 	
 	@Override
 	public String getServerName() {
-		return Bukkit.getServerName();
+		return Utils.getBukkitServerName();
 	}
 
 	@Override

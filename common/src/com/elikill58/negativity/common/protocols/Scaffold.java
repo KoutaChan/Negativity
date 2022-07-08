@@ -68,7 +68,7 @@ public class Scaffold extends Cheat {
 		}, 1);
 	}
 
-	@Check(name = "distance", description = "Distance between placed and target one", conditions = { CheckConditions.SURVIVAL, CheckConditions.NO_INSIDE_VEHICLE })
+	@Check(name = "distance", description = "Distance between placed and target one", conditions = { CheckConditions.SURVIVAL, CheckConditions.NO_INSIDE_VEHICLE, CheckConditions.NO_ON_BEDROCK })
 	public void onBlockPlaceDistance(BlockPlaceEvent e) {
 		Player p = e.getPlayer();
 		Block place = e.getBlock();
@@ -148,7 +148,7 @@ public class Scaffold extends Cheat {
 		}
  	}
 	
-	@Check(name = "rise-slot", description = "Detect move of head & slot.\n§cWARN: This check can be created even without hack.\n§cEnable it carefully.")
+	@Check(name = "rise-slot", description = "Detect move of head & slot.\n§cWARN: This check can be created even without hack.\n§cEnable it carefully.", conditions = CheckConditions.NO_ON_BEDROCK)
 	public void onPacket(PacketReceiveEvent e, NegativityPlayer np) {
 		// fully manage in ScaffoldRiseCheckProcessor
 	}

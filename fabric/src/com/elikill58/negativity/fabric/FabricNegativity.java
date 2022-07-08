@@ -20,27 +20,25 @@ import com.elikill58.negativity.api.entity.Player;
 import com.elikill58.negativity.api.events.channel.GameChannelNegativityMessageEvent;
 import com.elikill58.negativity.fabric.impl.entity.FabricEntityManager;
 import com.elikill58.negativity.fabric.impl.entity.FabricPlayer;
-import com.elikill58.negativity.fabric.listeners.BlockListeners;
 import com.elikill58.negativity.fabric.listeners.CommandsExecutorManager;
 import com.elikill58.negativity.fabric.listeners.PlayersListeners;
 import com.elikill58.negativity.fabric.packets.NegativityPacketManager;
 import com.elikill58.negativity.fabric.utils.Utils;
 import com.elikill58.negativity.universal.Adapter;
-import com.elikill58.negativity.universal.Database;
 import com.elikill58.negativity.universal.Negativity;
 import com.elikill58.negativity.universal.Stats;
-import com.elikill58.negativity.universal.Stats.StatsType;
 import com.elikill58.negativity.universal.account.NegativityAccount;
 import com.elikill58.negativity.universal.account.NegativityAccountManager;
 import com.elikill58.negativity.universal.ban.Ban;
 import com.elikill58.negativity.universal.ban.BanManager;
-import com.elikill58.negativity.universal.dataStorage.NegativityAccountStorage;
 import com.elikill58.negativity.universal.detections.Cheat.CheatHover;
 import com.elikill58.negativity.universal.pluginMessages.AlertMessage;
 import com.elikill58.negativity.universal.pluginMessages.NegativityMessagesManager;
 import com.elikill58.negativity.universal.pluginMessages.ReportMessage;
+import com.elikill58.negativity.universal.storage.account.NegativityAccountStorage;
 import com.elikill58.negativity.universal.utils.UniversalUtils;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.tree.LiteralCommandNode;
 
 import net.fabricmc.api.DedicatedServerModInitializer;
@@ -68,7 +66,6 @@ public class FabricNegativity implements DedicatedServerModInitializer {
 	private Path configDir;
 	private MinecraftServer server;
 	private NegativityPacketManager packetManager;
-	private CommandDispatcher<ServerCommandSource> dispatcher;
 	public static Identifier negativityChannel = new Identifier(NegativityMessagesManager.CHANNEL_ID),
 			fmlChannel = new Identifier("fml:hs"), bungeecordChannel = new Identifier("bungeecord");
 
@@ -81,12 +78,12 @@ public class FabricNegativity implements DedicatedServerModInitializer {
 		new File(configDir.toFile().getAbsolutePath() + File.separator + "user" + File.separator + "proof").mkdirs();
 
 		Adapter.setAdapter(new FabricAdapter(this, LOGGER));
+		BanManager.init();
 
 		ServerLifecycleEvents.SERVER_STARTING.register(this::onGameStart);
 		ServerLifecycleEvents.SERVER_STOPPING.register(this::onGameStop);
-		CommandRegistrationCallback.EVENT.register((dispatcher, dedicated) -> this.dispatcher = dispatcher);
+		CommandRegistrationCallback.EVENT.register((dispatcher, dedicated) -> loadCommands(dispatcher));
 
-		BlockListeners.register();
 		PlayersListeners.register();
 		ServerPlayConnectionEvents.DISCONNECT.register(this::onLeave);
 		ServerPlayConnectionEvents.INIT.register(this::onAuth);
@@ -97,9 +94,16 @@ public class FabricNegativity implements DedicatedServerModInitializer {
 	}
 
 	public void onGameStop(MinecraftServer srv) {
-		NegativityPlayer.getAllPlayers().values().forEach(NegativityPlayer::destroy);
-		Stats.updateStats(StatsType.ONLINE, 0 + "");
-		Database.close();
+		if (FabricAdapter.getAdapter().getScheduler() instanceof FabricScheduler scheduler) {
+			Adapter.getAdapter().getLogger().info("Shutting down scheduler");
+			try {
+				scheduler.shutdown();
+			} catch (Exception e) {
+				Adapter.getAdapter().getLogger().error("Error occurred when shutting down scheduler: " + e.getMessage());
+				e.printStackTrace();
+			}
+		}
+		Negativity.closeNegativity();
 	}
 
 	public void onGameStart(MinecraftServer srv) {
@@ -107,25 +111,13 @@ public class FabricNegativity implements DedicatedServerModInitializer {
 		Negativity.loadNegativity();
 		packetManager = new NegativityPacketManager(this);
 
-		loadCommands(false);
-
 		ServerPlayNetworking.registerGlobalReceiver(fmlChannel, new FmlRawDataListener());
 		ServerPlayNetworking.registerGlobalReceiver(negativityChannel, new ProxyCompanionListener());
 
 		Stats.sendStartupStats(srv.getServerPort());
 	}
 
-	public void reloadCommands() {
-		loadCommands(true);
-	}
-
-	private void loadCommands(boolean reload) {
-		if (reload)
-			return;
-		if(dispatcher == null) {
-			Adapter.getAdapter().getLogger().warn("The command dispatcher is not set yet.");
-			return;
-		}
+	private void loadCommands(CommandDispatcher<ServerCommandSource> dispatcher) {
 		registerCommand("negativity", dispatcher, "neg", "n");
 		reloadCommand("nmod", dispatcher, "nmod", "mod");
 		reloadCommand("kick", dispatcher, "nkick", "kick");
@@ -146,8 +138,11 @@ public class FabricNegativity implements DedicatedServerModInitializer {
 	}
 
 	private void registerCommand(String cmd, CommandDispatcher<ServerCommandSource> dispatcher, String... alias) {
+		CommandsExecutorManager executor = new CommandsExecutorManager(cmd);
 		LiteralCommandNode<ServerCommandSource> node = dispatcher
-				.register(CommandManager.literal(cmd).executes(new CommandsExecutorManager(cmd)));
+				.register(CommandManager.literal(cmd)
+					.executes(executor)
+					.then(CommandManager.argument("args", StringArgumentType.greedyString()).suggests(executor).executes(executor)));
 
 		for (String sub : alias)
 			dispatcher.register(CommandManager.literal(sub).redirect(node));

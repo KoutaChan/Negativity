@@ -6,12 +6,10 @@ import org.bstats.bungeecord.MetricsLite;
 
 import com.elikill58.negativity.bungee.integrations.RedisSupport;
 import com.elikill58.negativity.universal.Adapter;
-import com.elikill58.negativity.universal.Database;
 import com.elikill58.negativity.universal.Negativity;
 import com.elikill58.negativity.universal.Stats;
-import com.elikill58.negativity.universal.Stats.StatsType;
-import com.elikill58.negativity.universal.dataStorage.NegativityAccountStorage;
 import com.elikill58.negativity.universal.pluginMessages.NegativityMessagesManager;
+import com.elikill58.negativity.universal.storage.account.NegativityAccountStorage;
 
 import net.md_5.bungee.api.ProxyServer;
 import net.md_5.bungee.api.config.ServerInfo;
@@ -49,9 +47,7 @@ public class BungeeNegativity extends Plugin {
 		}
 		
 		try {
-			@SuppressWarnings("deprecation")
-			int port = ProxyServer.getInstance().getConfig().getListeners().iterator().next().getQueryPort();
-			Stats.sendStartupStats(port);
+			Stats.sendStartupStats(ProxyServer.getInstance().getConfigurationAdapter().getListeners().iterator().next().getQueryPort());
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -59,8 +55,7 @@ public class BungeeNegativity extends Plugin {
 
 	@Override
 	public void onDisable() {
-		Database.close();
-		Stats.updateStats(StatsType.ONLINE, 0 + "");
+		Negativity.closeNegativity();
 	}
 	
 	public static String getProxyId() {

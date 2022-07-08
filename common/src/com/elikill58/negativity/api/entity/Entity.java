@@ -6,6 +6,7 @@ import com.elikill58.negativity.api.block.Block;
 import com.elikill58.negativity.api.commands.CommandSender;
 import com.elikill58.negativity.api.location.Location;
 import com.elikill58.negativity.api.location.Vector;
+import com.elikill58.negativity.api.location.World;
 
 public interface Entity extends CommandSender {
 
@@ -32,6 +33,13 @@ public interface Entity extends CommandSender {
 	 */
 	Location getLocation();
 	
+	/**
+	 * Get the world of the entity
+	 * 
+	 * @return the entity world
+	 */
+	World getWorld();
+	
 	double getEyeHeight();
 	
 	Location getEyeLocation();
@@ -49,6 +57,13 @@ public interface Entity extends CommandSender {
 	 * @return the entity type
 	 */
 	EntityType getType();
+	
+	/**
+	 * Check if the entity is dead
+	 * 
+	 * @return true if entity is dead
+	 */
+	boolean isDead();
 	
 	/**
 	 * Get the entity ID

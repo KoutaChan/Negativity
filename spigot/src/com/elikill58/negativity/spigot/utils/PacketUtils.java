@@ -4,7 +4,6 @@ import java.util.HashMap;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 
 import com.elikill58.negativity.spigot.nms.SpigotVersionAdapter;
@@ -14,24 +13,11 @@ public class PacketUtils {
 
 	private static final String VERSION = Bukkit.getServer().getClass().getPackage().getName().replace(".", ",")
 			.split(",")[3];
-	public static final String NMS_PREFIX;
-
-	public static Class<?> CRAFT_PLAYER_CLASS, CRAFT_SERVER_CLASS, CRAFT_ENTITY_CLASS;
-	public static Class<?> ENUM_PLAYER_INFO = SpigotVersionAdapter.getVersionAdapter().getEnumPlayerInfoAction();
-	
-	static {
-		NMS_PREFIX = Version.getVersion(VERSION).isNewerOrEquals(Version.V1_17) ? "net.minecraft." : "net.minecraft.server." + VERSION + ".";
-		try {
-			CRAFT_PLAYER_CLASS = Class.forName("org.bukkit.craftbukkit." + VERSION + ".entity.CraftPlayer");
-			CRAFT_ENTITY_CLASS = Class.forName("org.bukkit.craftbukkit." + VERSION + ".entity.CraftEntity");
-			CRAFT_SERVER_CLASS = Class.forName("org.bukkit.craftbukkit." + VERSION + ".CraftServer");
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
+	public static final String NMS_PREFIX = Version.getVersion(VERSION).isNewerOrEquals(Version.V1_17) ? "net.minecraft." : "net.minecraft.server." + VERSION + ".";
+	public static final Class<?> ENUM_PLAYER_INFO = SpigotVersionAdapter.getVersionAdapter().getEnumPlayerInfoAction();
 	
 	/**
-	 * This Map is to reduce Reflection action which take more ressources than just RAM action
+	 * This Map is to reduce Reflection action which take more resources than just RAM action
 	 */
 	private static final HashMap<String, Class<?>> ALL_CLASS = new HashMap<>();
 	
@@ -66,34 +52,22 @@ public class PacketUtils {
 	}
 	
 	/**
-	 * Create a new instance of a packet (without any parameters)
+	 * Get the Class in NMS, with a processing reducer
 	 * 
-	 * @param packetName the name of the packet which is in NMS
-	 * @return the created packet
+	 * @param name of the OBC class (in org.bukkit.craftbukkit.version. package ONLY, because it's OBC)
+	 * @return the loaded or cached class
 	 */
-	public static Object createPacket(String packetName) {
-		try {
-			return getNmsClass(packetName).getConstructor().newInstance();
-		} catch (Exception e) {
-			e.printStackTrace();
-			return null;
+	public static Class<?> getObcClass(String name){
+		synchronized(ALL_CLASS) {
+			return ALL_CLASS.computeIfAbsent(name, (s) -> {
+				try {
+					return Class.forName("org.bukkit.craftbukkit." + VERSION + "." + name);
+				} catch (Exception e) {
+					e.printStackTrace();
+					return null;
+				}
+			});
 		}
-	}
-	
-	/**
-	 * Get the current player ping
-	 *
-	 * @param p the player
-	 * @return the player ping
-	 */
-	public static int getPing(Player p) {
-		try {
-			Object entityPlayer = getEntityPlayer(p);
-			return entityPlayer.getClass().getField("ping").getInt(entityPlayer);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		return 0;
 	}
 
 	/**
@@ -130,7 +104,7 @@ public class PacketUtils {
 	 */
 	public static Object getEntityPlayer(Player p) {
 		try {
-			Object craftPlayer = CRAFT_PLAYER_CLASS.cast(p);
+			Object craftPlayer = getObcClass("entity.CraftPlayer").cast(p);
 			return craftPlayer.getClass().getMethod("getHandle").invoke(craftPlayer);
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -139,31 +113,14 @@ public class PacketUtils {
 	}
 	
 	/**
-	 * Get NMS entity player of specified one
+	 * Get NMS server
 	 * 
-	 * @param p the player that we want the NMS entity player
-	 * @return the entity player
+	 * @return the actual NMS server
 	 */
 	public static Object getDedicatedServer() {
 		try {
-			Object server = CRAFT_SERVER_CLASS.cast(Bukkit.getServer());
+			Object server = getObcClass("CraftServer").cast(Bukkit.getServer());
 			return server.getClass().getMethod("getServer").invoke(server);
-		} catch (Exception e) {
-			e.printStackTrace();
-			return null;
-		}
-	}
-	
-	/**
-	 * Get NMS entity player of specified one
-	 * 
-	 * @param et the player that we want the NMS entity player
-	 * @return the entity player
-	 */
-	public static Object getNMSEntity(Entity et) {
-		try {
-			Object craftEntity = CRAFT_ENTITY_CLASS.cast(et);
-			return craftEntity.getClass().getMethod("getHandle").invoke(craftEntity);
 		} catch (Exception e) {
 			e.printStackTrace();
 			return null;
@@ -178,51 +135,11 @@ public class PacketUtils {
 	 */
 	public static Object getWorldServer(Location loc) {
 		try {
-			Object object = Class.forName("org.bukkit.craftbukkit." + VERSION + ".CraftWorld").cast(loc.getWorld());
+			Object object = getObcClass("CraftWorld").cast(loc.getWorld());
 			return object.getClass().getMethod("getHandle").invoke(object);
 		} catch (Exception e) {
 			e.printStackTrace();
 			return null;
 		}
-	}
-	
-	public static String getNmsEntityName(Object nmsEntity) {
-		try {
-			if(Version.getVersion().isNewerOrEquals(Version.V1_13)) {
-				Object chatBaseComponent = getNmsClass("Entity").getDeclaredMethod("getDisplayName").invoke(nmsEntity);
-				return (String) getNmsClass("IChatBaseComponent").getDeclaredMethod("getString").invoke(chatBaseComponent);
-			} else {
-				return (String) getNmsClass("Entity").getDeclaredMethod("getName").invoke(nmsEntity);
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-			return null;
-		}
-	}
-
-	public static Object getBoundingBox(Entity p) {
-		try {
-			//((CraftEntity) p).getHandle().getBoundingBox();
-			Object ep = CRAFT_ENTITY_CLASS.getDeclaredMethod("getHandle").invoke(CRAFT_ENTITY_CLASS.cast(p));
-			if(Version.getVersion().equals(Version.V1_7))
-				return getNmsClass("Entity", "world.entity.").getDeclaredField("boundingBox").get(ep);
-			else if(Version.getVersion().isNewerOrEquals(Version.V1_18))
-				return getNmsClass("Entity", "world.entity.").getDeclaredMethod("cw").invoke(ep);
-			else
-				return getNmsClass("Entity", "world.entity.").getDeclaredMethod("getBoundingBox").invoke(ep);
-			/*Class<?> craftMonsterClass = Class.forName("org.bukkit.craftbukkit." + VERSION + ".entity.CraftEntity");
-			if(cp.getClass().isInstance(craftMonsterClass)) { // prevent protected items
-				Object ep = craftMonsterClass.getDeclaredMethod("getHandle").invoke(craftMonsterClass.cast(cp));
-				if(Version.getVersion().equals(Version.V1_7))
-					return getNmsClass("Entity").getDeclaredField("boundingBox").get(ep);
-				else
-					return getNmsClass("Entity").getDeclaredMethod("getBoundingBox").invoke(ep);
-			} else {
-				SpigotNegativity.getInstance().getLogger().info(cp.getClass().getName() + " isn't " + craftMonsterClass.getName());
-			}*/
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		return null;
 	}
 }

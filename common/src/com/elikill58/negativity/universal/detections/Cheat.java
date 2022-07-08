@@ -54,9 +54,7 @@ public abstract class Cheat extends AbstractDetection<CheatKeys> {
 	 * @param key the cheat key
 	 * @param type the cheat category
 	 * @param m the material used in inventory to represent this cheat
-	 * @param needPacket if the cheat need packet in detections
-	 * @param hasVerif know if the cheat can be used in verification system
-	 * @param alias all other names of the cheat
+	 * @param options all options that describe the cheat
 	 */
 	public Cheat(CheatKeys key, CheatCategory type, Material m, CheatDescription... options) {
 		super(key, m);
@@ -117,7 +115,7 @@ public abstract class Cheat extends AbstractDetection<CheatKeys> {
 	/**
 	 * Check if a detection is active
 	 * 
-	 * @param checkName the name of the detection
+	 * @param check the check that we are looking to check
 	 * @return true if the detection is active
 	 */
 	public boolean checkActive(Check check) {
@@ -137,7 +135,7 @@ public abstract class Cheat extends AbstractDetection<CheatKeys> {
 	/**
 	 * Check if a detection is active
 	 * 
-	 * @param checkName the name of the detection
+	 * @param check the check of the detection
 	 * @param active if the check will be active
 	 */
 	public void setCheckActive(Check check, boolean active) {
@@ -182,8 +180,8 @@ public abstract class Cheat extends AbstractDetection<CheatKeys> {
 	}
 
 	/**
-	 * Set the allowability to kick
-	 * Warn: this don't save the config
+	 * Set the allowability to kick.<br>
+	 * Warn: this doesn't save the config
 	 * 
 	 * @param b the new value
 	 * @return the given boolean value
@@ -194,7 +192,7 @@ public abstract class Cheat extends AbstractDetection<CheatKeys> {
 	}
 
 	/**
-	 * Get the amount of needed alert to kick
+	 * Get the amount of needed alert to kick.<br>
 	 * By default it's 5
 	 * 
 	 * @return the needed alert counter
@@ -278,6 +276,7 @@ public abstract class Cheat extends AbstractDetection<CheatKeys> {
 	/**
 	 * Add data to verification
 	 * 
+	 * @param <T> The type of the recorded data
 	 * @param target the player which create the data
 	 * @param type the data type
 	 * @param value the value recorded

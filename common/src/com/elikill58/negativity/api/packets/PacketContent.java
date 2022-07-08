@@ -1,6 +1,7 @@
 package com.elikill58.negativity.api.packets;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.NoSuchElementException;
 
@@ -44,6 +45,7 @@ public class PacketContent {
 	/**
 	 * Get content modifier of a custom type
 	 * 
+	 * @param <T> the type used in the content modifier
 	 * @param type the searched type
 	 * @return the content modifier of the type
 	 */
@@ -54,6 +56,7 @@ public class PacketContent {
 	/**
 	 * Get content modifier of a custom type
 	 * 
+	 * @param <T> the type used in the content modifier
 	 * @param clazz the searched type
 	 * @return the content modifier of the type
 	 */
@@ -151,6 +154,8 @@ public class PacketContent {
 		public ContentModifier(Object obj, @Nullable Class<?> clazz) {
 			this.obj = obj;
 			for(Field f : obj.getClass().getDeclaredFields()) {
+				if(Modifier.isStatic(f.getModifiers()))
+					continue;
 				try {
 					if(clazz == null || f.getType().isAssignableFrom(clazz)) {
 						f.setAccessible(true);
@@ -162,6 +167,8 @@ public class PacketContent {
 			}
 			if(!obj.getClass().getSuperclass().equals(Object.class)) {
 				for(Field f : obj.getClass().getSuperclass().getDeclaredFields()) {
+					if(Modifier.isStatic(f.getModifiers()))
+						continue;
 					try {
 						if(clazz == null || f.getType().isAssignableFrom(clazz)) {
 							f.setAccessible(true);

@@ -155,7 +155,7 @@ public class NegativityCommand implements CommandListeners, TabListeners {
 			return true;
 		} else if (arg[0].equalsIgnoreCase("admin") || arg[0].toLowerCase(Locale.ROOT).contains("manage")) {
 			if (arg.length >= 2 && arg[1].equalsIgnoreCase("updateMessages")) {
-				if (sender instanceof Player && !Perm.hasPerm(NegativityPlayer.getNegativityPlayer((Player) sender), Perm.MANAGE_CHEAT)) {
+				if (sender instanceof Player && !Perm.hasPerm(NegativityPlayer.getNegativityPlayer((Player) sender), Perm.ADMIN)) {
 					Messages.sendMessage(sender, "not_permission");
 					return true;
 				}
@@ -169,7 +169,7 @@ public class NegativityCommand implements CommandListeners, TabListeners {
 				return true;
 			}
 			Player p = (Player) sender;
-			if (!Perm.hasPerm(NegativityPlayer.getNegativityPlayer(p), Perm.MANAGE_CHEAT)) {
+			if (!Perm.hasPerm(NegativityPlayer.getNegativityPlayer(p), Perm.ADMIN)) {
 				Messages.sendMessage(sender, "not_permission");
 				return true;
 			}
@@ -235,6 +235,7 @@ public class NegativityCommand implements CommandListeners, TabListeners {
 					sender.sendMessage(ChatColor.YELLOW + "No webhook configurated.");
 				} else {
 					for(Webhook hook : webhooks) {
+						
 						if(hook.ping(sender.getName())) {
 							sender.sendMessage(ChatColor.GREEN + hook.getWebhookName() + " well configurated.");
 						} else {
@@ -265,7 +266,6 @@ public class NegativityCommand implements CommandListeners, TabListeners {
 			p.sendMessage(ChatColor.YELLOW + "--- Checking debug for bypass ---");
 			p.sendMessage(ChatColor.GOLD + ada.getName() + ": " + ada.getVersion() + ". Negativity: " + ada.getPluginVersion());
 			boolean hasBypass = false;
-			Cheat c = Cheat.values().stream().filter(Cheat::isActive).findFirst().get();
 			if (np.isFreeze) {
 				p.sendMessage(ChatColor.RED + name + " are currently freezed.");
 				hasBypass = true;
@@ -277,47 +277,44 @@ public class NegativityCommand implements CommandListeners, TabListeners {
 			int ping = target.getPing();
 			if(np.isInFight)
 				hasBypass = true;
-			if(arg.length > 2) {
-				c = Cheat.fromString(arg[2]);
-				if(c != null) {
-					p.sendMessage(ChatColor.GREEN + "Checking for cheat " + c.getName() + ".");
-					if(!c.isActive()) {
-						p.sendMessage(ChatColor.RED + "Cheat disabled.");
-						hasBypass = true;
-					}
-					if(!np.already_blink && c.getKey().equals(CheatKeys.BLINK)) {
-						p.sendMessage(ChatColor.RED + "Bypass for blink.");
-						hasBypass = true;
-					}
-					if (c.getCheatCategory().equals(CheatCategory.MOVEMENT)) {
-						for (PlayerModifications modification : PlayerModificationsManager.getModifications()) {
-							if (modification.shouldIgnoreMovementChecks(p)) {
-								p.sendMessage(ChatColor.RED + modification.getDisplayname() + " movement bypass.");
-								hasBypass = true;
-							}
+			Cheat c = arg.length > 2 ? Cheat.fromString(arg[2]) : Cheat.values().stream().filter(Cheat::isActive).findFirst().get();
+			if(c != null) {
+				p.sendMessage(ChatColor.GREEN + "Checking for cheat " + c.getName() + ".");
+				if(!c.isActive()) {
+					p.sendMessage(ChatColor.RED + "Cheat disabled.");
+					hasBypass = true;
+				}
+				if(!np.already_blink && c.getKey().equals(CheatKeys.BLINK)) {
+					p.sendMessage(ChatColor.RED + "Bypass for blink.");
+					hasBypass = true;
+				}
+				if (c.getCheatCategory().equals(CheatCategory.MOVEMENT)) {
+					for (PlayerModifications modification : PlayerModificationsManager.getModifications()) {
+						if (modification.shouldIgnoreMovementChecks(p)) {
+							p.sendMessage(ChatColor.RED + modification.getDisplayname() + " movement bypass.");
+							hasBypass = true;
 						}
 					}
-					if (c.getKey().equals(CheatKeys.FLY)) {
-						for (PlayerModifications modification : PlayerModificationsManager.getModifications()) {
-							if (modification.canFly(p)) {
-								p.sendMessage(ChatColor.RED + modification.getDisplayname() + " fly bypass.");
-								hasBypass = true;
-							}
+				}
+				if (c.getKey().equals(CheatKeys.FLY)) {
+					for (PlayerModifications modification : PlayerModificationsManager.getModifications()) {
+						if (modification.canFly(p)) {
+							p.sendMessage(ChatColor.RED + modification.getDisplayname() + " fly bypass.");
+							hasBypass = true;
 						}
 					}
-					if(ping > c.getMaxAlertPing()) {
-						p.sendMessage(ChatColor.RED + "To high ping ! " + ChatColor.YELLOW + "(" + ping + " > " + c.getMaxAlertPing() + ")");
-						hasBypass = true;
-					}
-					if(!np.hasDetectionActive(c)) {
-						p.sendMessage(ChatColor.RED + "Detection of " + c.getName() + " not active: " + np.getWhyDetectionNotActive(c));
-						hasBypass = true;
-					}
-				} else
-					p.sendMessage(ChatColor.RED + "Unknow cheat " + arg[2] + ".");
+				}
+				if(ping > c.getMaxAlertPing()) {
+					p.sendMessage(ChatColor.RED + "To high ping ! " + ChatColor.YELLOW + "(" + ping + " > " + c.getMaxAlertPing() + ")");
+					hasBypass = true;
+				}
+				if(!np.hasDetectionActive(c)) {
+					p.sendMessage(ChatColor.RED + "Detection of " + c.getName() + " not active: " + np.getWhyDetectionNotActive(c));
+					hasBypass = true;
+				}
 			} else
-				p.sendMessage(ChatColor.YELLOW + (np.isInFight ? "In fight, " : "") + "Ping: " + ping + "ms (by default, at 200ms you bypass it)");
-			if((c != null && ping > c.getMaxAlertPing()) || ping > 200)
+				p.sendMessage(ChatColor.RED + "Unknow cheat " + arg[2] + ".");
+			if((c != null && ping > c.getMaxAlertPing()) || (c == null && ping > 200))
 				hasBypass = true;
 			p.sendMessage(hasBypass ? ChatColor.RED + "Warn: " + name + " have bypass, so you cannot be detected." : ChatColor.GREEN + "Good news: " + name + " can be detected !");
 			if(!hasBypass && c != null)
@@ -364,7 +361,7 @@ public class NegativityCommand implements CommandListeners, TabListeners {
 			list.addAll(Messages.getMessageList(sender, "negativity.mod.help"));
 		if (Perm.hasPerm(sender, Perm.MOD))
 			list.addAll(Messages.getMessageList(sender, "negativity.clear.help"));
-		if (sender instanceof Player && Perm.hasPerm(sender, Perm.MANAGE_CHEAT))
+		if (sender instanceof Player && Perm.hasPerm(sender, Perm.ADMIN))
 			list.addAll(Messages.getMessageList(sender, "negativity.admin.help"));
 		if (Perm.hasPerm(sender, Perm.ADMIN) && WebhookManager.isEnabled())
 			list.addAll(Messages.getMessageList(sender, "negativity.webhook.help"));
@@ -417,10 +414,12 @@ public class NegativityCommand implements CommandListeners, TabListeners {
 				suggestions.add("reload");
 			if ("alert".startsWith(prefix))
 				suggestions.add("alert");
-			if ("admin".startsWith(prefix) && (sender instanceof Player) && Perm.hasPerm(NegativityPlayer.getCached(((Player) sender).getUniqueId()), Perm.MANAGE_CHEAT))
+			if ("admin".startsWith(prefix) && (sender instanceof Player) && Perm.hasPerm(NegativityPlayer.getCached(((Player) sender).getUniqueId()), Perm.ADMIN))
 				suggestions.add("admin");
 			if ("debug".startsWith(prefix))
 				suggestions.add("debug");
+			if ("webhook".startsWith(prefix) && WebhookManager.isEnabled())
+				suggestions.add("webhook");
 		} else {
 			if (arg[0].equalsIgnoreCase("verif") || arg[0].equalsIgnoreCase("debug")) {
 				// both command use tab arguments to works

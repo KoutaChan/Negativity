@@ -13,7 +13,6 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import com.elikill58.negativity.api.yaml.Configuration;
 import com.elikill58.negativity.universal.Adapter;
-import com.elikill58.negativity.universal.Database;
 import com.elikill58.negativity.universal.Messages;
 import com.elikill58.negativity.universal.Negativity;
 import com.elikill58.negativity.universal.Sanction;
@@ -26,6 +25,7 @@ import com.elikill58.negativity.universal.ban.storage.DatabaseActiveBanStorage;
 import com.elikill58.negativity.universal.ban.storage.DatabaseBanLogsStorage;
 import com.elikill58.negativity.universal.ban.storage.FileActiveBanStorage;
 import com.elikill58.negativity.universal.ban.storage.FileBanLogsStorage;
+import com.elikill58.negativity.universal.database.Database;
 import com.elikill58.negativity.universal.detections.Cheat;
 import com.elikill58.negativity.universal.utils.UniversalUtils;
 import com.elikill58.negativity.universal.webhooks.WebhookManager;
@@ -75,6 +75,7 @@ public class BanManager {
 	 * <p>
 	 * The ban may not be executed if bans are disabled, or for any {@link BanProcessor}-specific reason, like if the player bypassed the ban.
 	 *
+	 * @param ban the ban to execute
 	 * @return the result of the ban with success informations
 	 */
 	public static BanResult executeBan(Ban ban) {
@@ -143,6 +144,8 @@ public class BanManager {
 	
 	/**
 	 * Indicates whether Negativity should kick banned players
+	 * 
+	 * @return true if there is a processor and if it enable negativity's kick
 	 */
 	public static boolean shouldNegativityHandleBans() {
 		BanProcessor processor = getProcessor();

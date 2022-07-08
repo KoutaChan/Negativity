@@ -8,13 +8,18 @@ import java.io.OutputStream;
 import java.net.URL;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 import javax.net.ssl.HttpsURLConnection;
 
+import com.elikill58.negativity.api.Content;
+import com.elikill58.negativity.api.entity.Player;
 import com.elikill58.negativity.api.json.JSONObject;
 import com.elikill58.negativity.api.json.parser.JSONParser;
 import com.elikill58.negativity.api.yaml.Configuration;
@@ -23,20 +28,40 @@ import com.elikill58.negativity.universal.Tuple;
 import com.elikill58.negativity.universal.webhooks.Webhook;
 import com.elikill58.negativity.universal.webhooks.integrations.DiscordWebhook.DiscordWebhookRequest.EmbedObject;
 import com.elikill58.negativity.universal.webhooks.messages.WebhookMessage;
+import com.elikill58.negativity.universal.webhooks.messages.WebhookMessage.WebhookMessageType;
 
-@SuppressWarnings("unchecked")
 public class DiscordWebhook implements Webhook {
     
 	private final Configuration config;
 	private final String webhookUrl;
 	private final ScheduledExecutorService executorService;
-	private List<WebhookMessage> queue = new ArrayList<>();
-	private long time = 0;
+	private final List<UUID> alreadySent = new ArrayList<>();
+	private final List<WebhookMessage> queue = new ArrayList<>();
+	private long time = 0, cooldown = 0;
+	private final Content<Long> players = new Content<>();
 	
 	public DiscordWebhook(Configuration config) {
 		this.config = config;
+		this.cooldown = config.getLong("cooldown", 0);
 		this.webhookUrl = config.getString("url");
 		this.executorService = Executors.newScheduledThreadPool(1);
+	}
+	
+	private long getTheoricCooldown(WebhookMessageType type) {
+		return config.getLong("messages." + type.name().toLowerCase(Locale.ROOT) + ".cooldown", this.cooldown);
+	}
+
+	public long getCooldown(Player p, WebhookMessageType type) {
+		long saved = players.get(type, p.getUniqueId().toString(), System.currentTimeMillis() + getTheoricCooldown(type));
+		return saved == 0 ? 0 : System.currentTimeMillis() - saved;
+	}
+
+	public boolean hasCooldown(Player p, WebhookMessageType type) {
+		return getCooldown(p, type) < 0;
+	}
+	
+	public void setCooldown(Player p, WebhookMessageType type) {
+		players.set(type, p.getUniqueId().toString(), System.currentTimeMillis() + getTheoricCooldown(type));
 	}
 	
 	@Override
@@ -51,11 +76,32 @@ public class DiscordWebhook implements Webhook {
     }
     
     @Override
+    public void clean(Player p) {
+    	for(WebhookMessageType type : WebhookMessageType.values())
+    		players.remove(type, p.getUniqueId().toString());
+    	alreadySent.remove(p.getUniqueId());
+    }
+    
+    @Override
     public void addToQueue(WebhookMessage msg) {
+    	if(msg == null)
+    		return;
     	if(!msg.canCombine())
     		send(msg);
-    	else
-    		queue.add(msg);
+    	else {
+    		synchronized (queue) {
+        		queue.add(msg);
+        		for(WebhookMessage other : new ArrayList<>(queue)) { // for all queued messages
+        			WebhookMessage combined = msg.combine(other); // try to combine
+        			if(combined != null) { // can combine, remove old and add new
+        				queue.remove(other); // remove old old
+        				queue.remove(msg);
+        				queue.add(combined); // add new combined
+        				break; // found combine
+        			}
+        		}
+			}
+    	}
     }
     
     @Override
@@ -63,72 +109,87 @@ public class DiscordWebhook implements Webhook {
     	if(time > System.currentTimeMillis()) { // should skip
     		return;
     	}
+    	
     	// firstly, combine all
-    	synchronized (queue) {
-    		if(queue.isEmpty())
-    			return;
-    		while(!queue.isEmpty()) {
-	    		WebhookMessage msg = queue.remove(0);
-	    		if(queue.isEmpty()) { // removed is last
-	    			send(msg);
-	    		} else if(queue.size() == 1) {
-	    			WebhookMessage other = queue.remove(0);
-	    			WebhookMessage third = msg.combine(other);
-	    			if(third != null)
-	    				send(third);
-	    			else {
-	    				send(msg);
-	    				send(other);
-	    			}
-	    		} else {
-	    			List<WebhookMessage> toRemove = new ArrayList<>();
-					for(int i = 0; i < queue.size(); i++) {
-						if(queue.size() <= i)
-							break;
-						WebhookMessage other = queue.get(i);
-						WebhookMessage third = msg.combine(other);
-						if(third != null) {
-							msg = third;
-							toRemove.add(other);
-						}
+		queue.removeIf(Objects::isNull);
+		if(queue.isEmpty())
+			return;
+		queue.sort(Comparator.naturalOrder());
+		while(!queue.isEmpty()) {
+    		WebhookMessage msg = queue.remove(0);
+    		if(queue.isEmpty()) { // removed is last
+    			send(msg);
+    		} else if(queue.size() == 1) { // stay only one other
+    			WebhookMessage other = queue.remove(0);
+    			WebhookMessage third = msg.combine(other); // try to combine
+    			if(third != null) // success, then new one
+    				send(third);
+    			else { // failed, send 2 last
+    				send(msg);
+    				send(other);
+    			}
+    		} else {
+    			List<WebhookMessage> toRemove = new ArrayList<>();
+				for(int i = 0; i < queue.size(); i++) {
+					if(queue.size() <= i)
+						break;
+					WebhookMessage other = queue.get(i);
+					WebhookMessage third = msg.combine(other);
+					if(third != null) {
+						msg = third;
+						toRemove.add(other);
 					}
-					queue.removeAll(toRemove);
-					send(msg);
-	    		}
+				}
+				queue.removeAll(toRemove);
+				send(msg);
     		}
 		}
     }
     
     @Override
     public void send(WebhookMessage msg) {
-    	executorService.execute(() -> sendAsync(msg));
+    	try {
+    		executorService.execute(() -> sendAsync(msg));
+    	} catch (Exception e) {
+    		e.printStackTrace();
+		}
     }
     
     private void sendAsync(WebhookMessage msg) {
     	try {
     		sendAsyncWithException(msg);
     	} catch (Exception e) {
-    		e.printStackTrace();
+    		Adapter.getAdapter().getLogger().printError("Error while sending webhook message about " + msg.getConcerned().getName(), e);
 		}
     }
     
     private void sendAsyncWithException(WebhookMessage msg) throws Exception {
+    	queue.remove(msg);
+    	Configuration confMsg = config.getSection("messages." + msg.getMessageType().name().toLowerCase(Locale.ROOT));
+    	if(confMsg == null) // not config
+    		return;
     	Adapter ada = Adapter.getAdapter();
-    	Configuration confMsg = config.getSection("messages").getSection(msg.getMessageType().name().toLowerCase(Locale.ROOT));
-    	if(confMsg == null)
-    		confMsg = new Configuration();
     	if(!confMsg.getBoolean("enabled", true)) {
         	ada.debug("Webhook for " + msg.getMessageType().name() + " is not enabled.");
     		return;
     	}
-    	if(time > System.currentTimeMillis()) { // should skip
+    	// if offline, don't care about cooldown
+    	if(time > System.currentTimeMillis() || (msg.getConcerned().isOnline() && hasCooldown(msg.getConcerned(), msg.getMessageType()))) { // should skip
     		queue.add(msg);
+        	ada.debug("Skipping " + msg.getMessageType().name() + ": " + (time > System.currentTimeMillis() ? "waiting for discord" : "player cooldown: " + getCooldown(msg.getConcerned(), msg.getMessageType())));
     		return;
     	}
-    	queue.remove(msg);
+    	ada.debug("Sending webhook " + msg.getMessageType().name() + " for " + msg.getConcerned().getName() + ": " + getCooldown(msg.getConcerned(), msg.getMessageType()));
+    	setCooldown(msg.getConcerned(), msg.getMessageType());
+    	queue.removeIf(w -> w.getDate() == msg.getDate()); // be sure it's removed
     	DiscordWebhookRequest webhook = new DiscordWebhookRequest(webhookUrl);
-    	webhook.setUsername(msg.applyPlaceHolders(confMsg.getString("username", "Negativity")));
-	    webhook.setContent(msg.applyPlaceHolders(confMsg.getString("content", "")));
+	    webhook.setUsername(msg.applyPlaceHolders(confMsg.getString("username", "Negativity")));
+	    if(alreadySent.contains(msg.getConcerned().getUniqueId())) { // if already sent first message
+		    webhook.setContent(msg.applyPlaceHolders(confMsg.getString("content", "")));
+	    } else { // is first message
+	    	alreadySent.add(msg.getConcerned().getUniqueId());
+		    webhook.setContent(msg.applyPlaceHolders(confMsg.getString("content_first", confMsg.getString("content", ""))));
+	    }
 	    webhook.setAvatarUrl(msg.applyPlaceHolders(confMsg.getString("avatar_url", "https://www.spigotmc.org/data/resource_icons/86/86874.jpg")));
 	    Configuration embed = confMsg.getSection("embed");
 	    if(embed != null) {
@@ -160,8 +221,11 @@ public class DiscordWebhook implements Webhook {
 		    }
 
 		    webhook.addEmbed(obj);
-	    }
+		    ada.debug("Added embed");
+	    } else
+		    ada.debug("No embed to add.");
 		Tuple<Integer, String> webhookResult = webhook.execute();
+	    ada.debug("Webhook result: " + webhookResult.toString());
 		int code = webhookResult.getA();
 		if(code < 200 || code >= 300) {
 	    	if(code == 429) { // good config and error while sending
@@ -244,6 +308,7 @@ public class DiscordWebhook implements Webhook {
 	        this.embeds.add(embed);
 	    }
 	
+		@SuppressWarnings("unchecked")
 		public Tuple<Integer, String> execute() throws IOException {
 	        if (this.content == null && this.embeds.isEmpty()) {
 	            throw new IllegalArgumentException("Set content or add at least one EmbedObject");
@@ -337,7 +402,6 @@ public class DiscordWebhook implements Webhook {
 	        connection.setDoOutput(true);
 	        connection.setRequestMethod("POST");
 	        OutputStream stream = connection.getOutputStream();
-	        Adapter.getAdapter().debug("Send json: " + json.toString());
 	        stream.write(json.toString().getBytes());
 	        stream.flush();
 	        stream.close();

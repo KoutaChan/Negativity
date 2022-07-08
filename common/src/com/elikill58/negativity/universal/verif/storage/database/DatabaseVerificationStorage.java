@@ -15,9 +15,9 @@ import java.util.stream.Collectors;
 
 import com.elikill58.negativity.api.NegativityPlayer;
 import com.elikill58.negativity.api.json.JSONObject;
-import com.elikill58.negativity.universal.Database;
 import com.elikill58.negativity.universal.Version;
-import com.elikill58.negativity.universal.dataStorage.database.DatabaseMigrator;
+import com.elikill58.negativity.universal.database.Database;
+import com.elikill58.negativity.universal.database.DatabaseMigrator;
 import com.elikill58.negativity.universal.detections.keys.CheatKeys;
 import com.elikill58.negativity.universal.verif.VerifData;
 import com.elikill58.negativity.universal.verif.Verificator;

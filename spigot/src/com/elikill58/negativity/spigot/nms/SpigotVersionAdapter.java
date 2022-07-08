@@ -8,14 +8,15 @@ import java.util.List;
 import java.util.Queue;
 
 import org.bukkit.Bukkit;
-import org.bukkit.GameMode;
-import org.bukkit.Location;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.inventory.meta.SkullMeta;
 
-import com.elikill58.negativity.api.item.ItemStack;
+import com.elikill58.negativity.api.block.BlockFace;
+import com.elikill58.negativity.api.entity.BoundingBox;
+import com.elikill58.negativity.api.item.Materials;
 import com.elikill58.negativity.api.location.BlockPosition;
 import com.elikill58.negativity.api.location.Vector;
 import com.elikill58.negativity.api.packets.PacketContent;
@@ -25,7 +26,6 @@ import com.elikill58.negativity.api.packets.nms.VersionAdapter;
 import com.elikill58.negativity.api.packets.packet.handshake.NPacketHandshakeInListener;
 import com.elikill58.negativity.api.packets.packet.handshake.NPacketHandshakeInSetProtocol;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInArmAnimation;
-import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInBlockPlace;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInChat;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInEntityAction;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInEntityAction.EnumPlayerAction;
@@ -36,6 +36,8 @@ import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInLook;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInPong;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInPosition;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInPositionLook;
+import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInSteerVehicle;
+import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInTeleportAccept;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInUseEntity;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInUseEntity.EnumEntityUseAction;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInUseItem;
@@ -48,8 +50,6 @@ import com.elikill58.negativity.api.packets.packet.playout.NPacketPlayOutExplosi
 import com.elikill58.negativity.api.packets.packet.playout.NPacketPlayOutKeepAlive;
 import com.elikill58.negativity.api.packets.packet.playout.NPacketPlayOutPing;
 import com.elikill58.negativity.api.packets.packet.playout.NPacketPlayOutPosition;
-import com.elikill58.negativity.api.utils.LocationUtils.Direction;
-import com.elikill58.negativity.spigot.impl.item.SpigotItemStack;
 import com.elikill58.negativity.spigot.utils.PacketUtils;
 import com.elikill58.negativity.universal.Adapter;
 import com.elikill58.negativity.universal.Version;
@@ -112,43 +112,6 @@ public abstract class SpigotVersionAdapter extends VersionAdapter<Player> {
 			return new NPacketPlayInUseEntity(get(f, "a"), vec,
 					EnumEntityUseAction.valueOf(((Enum<?>) get(f, "action")).name()));
 		});
-		packetsPlayIn.put("PacketPlayInBlockPlace", (p, packet) -> {
-			try {
-				PlayerInventory inventory = p.getInventory();
-				ItemStack handItem;
-				if (getStr(packet, "a").equalsIgnoreCase("MAIN_HAND")) {
-					handItem = new SpigotItemStack(inventory.getItemInMainHand());
-				} else {
-					handItem = new SpigotItemStack(inventory.getItemInOffHand());
-				}
-				Object player = PacketUtils.getEntityPlayer(p);
-				Class<?> entityClass = PacketUtils.getNmsClass("Entity");
-				float f1 = get(entityClass, player, "pitch");
-				float f2 = get(entityClass, player, "yaw");
-				double d0 = get(entityClass, player, "locX");
-				double d1 = ((double) get(entityClass, player, "locY")) + ((double) getFromMethod(entityClass, player, "getHeadHeight"));
-				double d2 = get(entityClass, player, "locZ");
-				Class<?> vec3DClass = PacketUtils.getNmsClass("Vec3D", "world.phys.");
-				Object vec3d = vec3DClass.getConstructor(double.class, double.class, double.class).newInstance(d0, d1, d2);
-				float f3 = cos(-f2 * 0.017453292F - 3.1415927F);
-				float f4 = sin(-f2 * 0.017453292F - 3.1415927F);
-				float f5 = -cos(-f1 * 0.017453292F);
-				float f6 = sin(-f1 * 0.017453292F);
-				float f7 = f4 * f5;
-				float f8 = f3 * f5;
-				double d3 = (p.getGameMode().equals(GameMode.CREATIVE)) ? 5.0D : 4.5D;
-				Object vec3d1 = vec3DClass.getMethod("add", double.class, double.class, double.class).invoke(vec3d, f7 * d3, f6 * d3, f8 * d3);
-				Location loc = p.getLocation();
-				Object worldServer = PacketUtils.getWorldServer(loc);
-				Object movingObj = PacketUtils.getNmsClass("World", "world.level.").getMethod("rayTrace", vec3DClass, vec3DClass).invoke(worldServer, vec3d, vec3d1);
-				Object vec = getFromMethod(movingObj, "a");
-				return new NPacketPlayInBlockPlace(getFromMethod(vec, "getX"), getFromMethod(vec, "getY"), getFromMethod(vec, "getZ"), handItem,
-					new Vector(loc.getX(), loc.getY() + p.getEyeHeight(), loc.getZ()));
-			} catch (Exception e) {
-				e.printStackTrace();
-				return null;
-			}
-		});
 		packetsPlayIn.put("PacketPlayInEntityAction", (p, f) -> {
 			EnumPlayerAction action = EnumPlayerAction.getAction(getStr(f, Version.getVersion().isNewerOrEquals(Version.V1_17) ? "b" : "animation"));
 			return new NPacketPlayInEntityAction(get(f, "a"), action, get(f, "c"));
@@ -158,7 +121,7 @@ public abstract class SpigotVersionAdapter extends VersionAdapter<Player> {
 			packetsPlayIn.put("PacketPlayInUseItem", (p, f) -> {
 				Object movingObj = get(f, "a");
 				BlockPosition pos = getBlockPosition(get(movingObj, "c"));
-				return new NPacketPlayInUseItem(pos.getX(), pos.getY(), pos.getZ(), Direction.valueOf(getStr(movingObj, "b").toUpperCase()), get(f, "timestamp"));
+				return new NPacketPlayInUseItem(pos.getX(), pos.getY(), pos.getZ(), BlockFace.valueOf(getStr(movingObj, "b").toUpperCase()), get(f, "timestamp"));
 			});
 		} else {
 			packetsPlayIn.put("PacketPlayInUseItem", (p, f) -> {
@@ -173,12 +136,20 @@ public abstract class SpigotVersionAdapter extends VersionAdapter<Player> {
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
-				return new NPacketPlayInUseItem(pos.getX(), pos.getY(), pos.getZ(), Direction.valueOf(getStr(f, "b").toUpperCase()), timestamp);
+				return new NPacketPlayInUseItem(pos.getX(), pos.getY(), pos.getZ(), BlockFace.valueOf(getStr(f, "b").toUpperCase()), timestamp);
 			});
 		}
 		packetsPlayIn.put("PacketPlayInHeldItemSlot", (p, f) -> new NPacketPlayInHeldItemSlot((int) ReflectionUtils.getField(f, v.isNewerOrEquals(Version.V1_17) ? "a" : "itemInHandIndex")));
+		packetsPlayIn.put("PacketPlayInSteerVehicle", (p, f) -> {
+			PacketContent c = new PacketContent(f);
+			ContentModifier<Float> floats = c.getFloats();
+			ContentModifier<Boolean> bools = c.getBooleans();
+			return new NPacketPlayInSteerVehicle(floats.readSafely(0, 0f), floats.readSafely(1, 0f), bools.readSafely(0, false), bools.readSafely(1, false));
+		});
+		if(v.isNewerThan(Version.V1_8)) {
+			packetsPlayIn.put("PacketPlayInTeleportAccept", (p, f) -> new NPacketPlayInTeleportAccept((int) ReflectionUtils.getField(f, "a")));
+		}
 		
-
 		packetsPlayOut.put("PacketPlayOutBlockBreakAnimation", (p, packet) -> {
 			Object pos = get(packet, "b");
 			return pos == null ? null : new NPacketPlayOutBlockBreakAnimation(getBlockPosition(pos), get(packet, "a"),
@@ -309,7 +280,53 @@ public abstract class SpigotVersionAdapter extends VersionAdapter<Player> {
 		return w.getEntities();
 	}
 	
+	public BoundingBox getBoundingBox(Entity et) {
+		try {
+			Class<?> craftEntityClass = PacketUtils.getObcClass("entity.CraftEntity");
+			Object ep = craftEntityClass.getDeclaredMethod("getHandle").invoke(craftEntityClass.cast(et));
+			Object bb = ReflectionUtils.getFirstWith(ep, PacketUtils.getNmsClass("Entity", "world.entity."), PacketUtils.getNmsClass("AxisAlignedBB", "world.phys."));
+			Class<?> clss = bb.getClass();
+			boolean hasMinField = false;
+			for(Field f : clss.getFields())
+				if(f.getName().equalsIgnoreCase("minX"))
+					hasMinField = true;
+			if(Version.getVersion().isNewerOrEquals(Version.V1_13) && hasMinField) {
+				double minX = clss.getField("minX").getDouble(bb);
+				double minY = clss.getField("minY").getDouble(bb);
+				double minZ = clss.getField("minZ").getDouble(bb);
+				
+				double maxX = clss.getField("maxX").getDouble(bb);
+				double maxY = clss.getField("maxY").getDouble(bb);
+				double maxZ = clss.getField("maxZ").getDouble(bb);
+				
+				return new BoundingBox(minX, minY, minZ, maxX, maxY, maxZ);
+			} else {
+				double minX = clss.getField("a").getDouble(bb);
+				double minY = clss.getField("b").getDouble(bb);
+				double minZ = clss.getField("c").getDouble(bb);
+				
+				double maxX = clss.getField("d").getDouble(bb);
+				double maxY = clss.getField("e").getDouble(bb);
+				double maxZ = clss.getField("f").getDouble(bb);
+				
+				return new BoundingBox(minX, minY, minZ, maxX, maxY, maxZ);
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return null;
+	}
+	
 	public abstract BlockPosition getBlockPosition(Object obj);
+	
+	public org.bukkit.inventory.ItemStack createSkull(OfflinePlayer owner) { // method used by old versions
+		// should be "PLAYER_HEAD" and nothing else.
+		// can't use direct material else we will have running issue on old versions
+		org.bukkit.inventory.ItemStack itemStack = new org.bukkit.inventory.ItemStack((org.bukkit.Material) Materials.PLAYER_HEAD.getDefault());
+    	SkullMeta skullmeta = (SkullMeta) (itemStack.hasItemMeta() ? itemStack.getItemMeta() : Bukkit.getItemFactory().getItemMeta(itemStack.getType()));
+		skullmeta.setOwningPlayer(owner); // warn: this method seems to exist since 1.12.1
+		return itemStack;
+	}
 
 	private static SpigotVersionAdapter instance;
 
@@ -358,6 +375,13 @@ public abstract class SpigotVersionAdapter extends VersionAdapter<Player> {
 				try {
 					return instance = (SpigotVersionAdapter) Class
 							.forName("com.elikill58.negativity.spigot18.Spigot_1_18_R2").getConstructor().newInstance();
+				} catch (ReflectiveOperationException e) {
+					throw new RuntimeException(e);
+				}
+			case "v1_19_R1":
+				try {
+					return instance = (SpigotVersionAdapter) Class
+							.forName("com.elikill58.negativity.spigot19.Spigot_1_19_R1").getConstructor().newInstance();
 				} catch (ReflectiveOperationException e) {
 					throw new RuntimeException(e);
 				}

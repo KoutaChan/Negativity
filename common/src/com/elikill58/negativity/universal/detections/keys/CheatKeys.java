@@ -5,7 +5,7 @@ import java.nio.file.Path;
 import com.elikill58.negativity.universal.Adapter;
 import com.elikill58.negativity.universal.Version;
 
-public enum CheatKeys implements IDetectionKeys<CheatKeys> {
+public enum CheatKeys implements IDetectionKey<CheatKeys> {
 
 	ALL("ALL"),
 	AIM_BOT("AIMBOT"),
@@ -51,6 +51,16 @@ public enum CheatKeys implements IDetectionKeys<CheatKeys> {
 
 	public static final String BUNDLED_MODULES_BASE = "/modules/";
 	public static final Path MODULE_FOLDER = Adapter.getAdapter().getDataFolder().toPath().resolve("modules");
+	
+	public static CheatKeys fromLowerKey(String name) {
+		if(name == null)
+			return null;
+		for (CheatKeys c : values()) {
+			if (c.getLowerKey().equalsIgnoreCase(name))
+				return c;
+		}
+		return null;
+	}
 	
 	private final String key;
 	private final Version minVersion;

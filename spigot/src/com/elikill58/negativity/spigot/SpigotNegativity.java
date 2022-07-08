@@ -2,7 +2,6 @@ package com.elikill58.negativity.spigot;
 
 import java.io.File;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
@@ -15,7 +14,6 @@ import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.plugin.messaging.Messenger;
 
-import com.elikill58.negativity.api.NegativityPlayer;
 import com.elikill58.negativity.api.yaml.Configuration;
 import com.elikill58.negativity.spigot.impl.entity.SpigotFakePlayer;
 import com.elikill58.negativity.spigot.listeners.BlockListeners;
@@ -29,14 +27,13 @@ import com.elikill58.negativity.spigot.nms.SpigotVersionAdapter;
 import com.elikill58.negativity.spigot.packets.NegativityPacketManager;
 import com.elikill58.negativity.spigot.utils.Utils;
 import com.elikill58.negativity.universal.Adapter;
-import com.elikill58.negativity.universal.Database;
 import com.elikill58.negativity.universal.Negativity;
 import com.elikill58.negativity.universal.Stats;
-import com.elikill58.negativity.universal.Stats.StatsType;
 import com.elikill58.negativity.universal.Version;
 import com.elikill58.negativity.universal.ban.BanManager;
-import com.elikill58.negativity.universal.dataStorage.NegativityAccountStorage;
+import com.elikill58.negativity.universal.database.Database;
 import com.elikill58.negativity.universal.pluginMessages.NegativityMessagesManager;
+import com.elikill58.negativity.universal.storage.account.NegativityAccountStorage;
 import com.elikill58.negativity.universal.utils.ReflectionUtils;
 
 public class SpigotNegativity extends JavaPlugin {
@@ -120,7 +117,7 @@ public class SpigotNegativity extends JavaPlugin {
 				double i = SpigotVersionAdapter.getVersionAdapter().getAverageTps() * 1.0E-6D;
 				if (Negativity.tpsDrop && i < 50) { // if disabled and need to be enabled
 					Negativity.tpsDrop = false;
-				} else if (!Negativity.tpsDrop && i > 50) { // if disabled but need to be
+				} else if (!Negativity.tpsDrop && i > 50) { // if not disabled but need to be
 					Negativity.tpsDrop = true;
 					Adapter.getAdapter().debug("Disabling detection because of TPS lagspike: " + i);
 				}
@@ -156,7 +153,7 @@ public class SpigotNegativity extends JavaPlugin {
 		if (!commandSection.getBoolean("kick", true))
 			unRegisterBukkitCommand(kickCmd);
 		else {
-			kickCmd.setAliases(Arrays.asList("negkick"));
+			kickCmd.setAliases(Arrays.asList("kigk"));
 			kickCmd.setExecutor(command);
 			kickCmd.setTabCompleter(command);
 		}
@@ -182,7 +179,7 @@ public class SpigotNegativity extends JavaPlugin {
 		if (!banConfig.getBoolean("ban", true))
 			unRegisterBukkitCommand(banCmd);
 		else {
-			banCmd.setAliases(Arrays.asList("negban"));
+			banCmd.setAliases(Arrays.asList("ban"));
 			banCmd.setExecutor(command);
 			banCmd.setTabCompleter(command);
 		}
@@ -191,7 +188,7 @@ public class SpigotNegativity extends JavaPlugin {
 		if (!banConfig.getBoolean("unban", true))
 			unRegisterBukkitCommand(unbanCmd);
 		else {
-			unbanCmd.setAliases(Arrays.asList("negunban"));
+			unbanCmd.setAliases(Arrays.asList("unban"));
 			unbanCmd.setExecutor(command);
 			unbanCmd.setTabCompleter(command);
 		}
@@ -215,10 +212,8 @@ public class SpigotNegativity extends JavaPlugin {
 
 	@Override
 	public void onDisable() {
-		new Thread(() -> new ArrayList<>(NegativityPlayer.getAllPlayers().keySet()).forEach(NegativityPlayer::removeFromCache)).start();
-		Database.close();
-		Stats.updateStats(StatsType.ONLINE, 0 + "");
 		packetManager.getPacketManager().clear();
+		Negativity.closeNegativity();
 	}
 	
 	public NegativityPacketManager getPacketManager() {

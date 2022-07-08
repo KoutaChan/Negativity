@@ -17,12 +17,15 @@ import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInBlockPlac
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInChat;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInEntityAction;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInFlying;
+import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInGround;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInHeldItemSlot;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInKeepAlive;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInLook;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInPong;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInPosition;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInPositionLook;
+import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInSteerVehicle;
+import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInTeleportAccept;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInUseEntity;
 import com.elikill58.negativity.api.packets.packet.playin.NPacketPlayInUseItem;
 import com.elikill58.negativity.api.packets.packet.playout.NPacketPlayOutBlockBreakAnimation;
@@ -109,8 +112,8 @@ public interface PacketType {
 	}
 	
 	/**
-	 * Get packet type of the given name
-	 * If the packet is not found and {@link #LOG_UNKNOW_PACKET} is on true, if will log it as info
+	 * Get packet type of the given name<br>
+	 * If the packet is not found and debug is enabled, if will log it as info
 	 * 
 	 * @param packetName the packet name
 	 * @return the packet type, or the UNSET value of the PacketType section or null
@@ -151,6 +154,7 @@ public interface PacketType {
 		ENTITY_ACTION("EntityAction", NPacketPlayInEntityAction::new),
 		ENTITY_NBT_QUERY("EntityNBTQuery", NPacketUnknown::new),
 		FLYING("Flying", NPacketPlayInFlying::new),
+		GROUND("Ground", NPacketPlayInGround::new),
 		HELD_ITEM_SLOT("HeldItemSlot", NPacketPlayInHeldItemSlot::new),
 		ITEM_NAME("ItemName", NPacketUnknown::new),
 		KEEP_ALIVE("KeepAlive", NPacketPlayInKeepAlive::new),
@@ -166,10 +170,10 @@ public interface PacketType {
 		SET_JIGSAW("SetJigsaw", NPacketUnknown::new),
 		SETTINGS("Settings", NPacketUnknown::new, "ClientSettings"),
 		SPECTATE("Spectate", NPacketUnknown::new),
-		STEER_VEHICLE("SteerVehicle", NPacketUnknown::new),
+		STEER_VEHICLE("SteerVehicle", NPacketPlayInSteerVehicle::new),
 		STRUCT("Struct", NPacketUnknown::new),
 		TAB_COMPLETE("TabComplete", NPacketUnknown::new),
-		TELEPORT_ACCEPT("TeleportAccept", NPacketUnknown::new),
+		TELEPORT_ACCEPT("TeleportAccept", NPacketPlayInTeleportAccept::new),
 		TILE_NBT_QUERY("TileNBTQuery", NPacketUnknown::new),
 		TR_SEL("TrSel", NPacketUnknown::new),
 		PONG("Transaction", NPacketPlayInPong::new, "Transaction"),
@@ -209,7 +213,7 @@ public interface PacketType {
 		
 		@Override
 		public boolean isFlyingPacket() {
-			return this == FLYING || this == POSITION || this == LOOK || this == POSITION_LOOK;
+			return this == FLYING || this == POSITION || this == LOOK || this == POSITION_LOOK || this == GROUND;
 		}
 		
 		@Override

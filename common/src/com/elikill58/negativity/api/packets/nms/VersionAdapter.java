@@ -73,20 +73,10 @@ public abstract class VersionAdapter<R> {
 	public abstract void queuePacket(R p, Object basicPacket);
 
 	@Deprecated
-	public NPacket getPacket(Player pl, Object nms) {
-		return getPacket(getR(pl), nms);
-	}
-
-	@Deprecated
-	public NPacket getPacket(R player, Object nms) {
-		return getPacket(player, nms, nms.getClass().getSimpleName());
-	}
-
-	@Deprecated
 	public NPacket getPacket(R player, Object nms, String packetName) {
 		try {
 			if (packetName.startsWith(PacketType.CLIENT_PREFIX) || packetName.startsWith("Serverbound"))
-				return packetsPlayIn.getOrDefault(packetName, (p, obj) -> new NPacketPlayInUnset(packetName, PacketType.getType(packetName))).apply(player, nms);
+				return packetsPlayIn.getOrDefault(packetName, (p, obj) -> new NPacketPlayInUnset(packetName)).apply(player, nms);
 			else if (packetName.startsWith(PacketType.SERVER_PREFIX) || packetName.startsWith("Clientbound"))
 				return packetsPlayOut.getOrDefault(packetName, (p, obj) -> new NPacketPlayOutUnset(packetName)).apply(player, nms);
 			else if (packetName.startsWith(PacketType.LOGIN_PREFIX))
@@ -130,7 +120,7 @@ public abstract class VersionAdapter<R> {
 		try {
 			switch (dir) {
 			case CLIENT_TO_SERVER:
-				return packetsPlayIn.getOrDefault(packetName, (p, obj) -> new NPacketPlayInUnset(packetName, PacketType.getType(packetName))).apply(player, nms);
+				return packetsPlayIn.getOrDefault(packetName, (p, obj) -> new NPacketPlayInUnset(packetName)).apply(player, nms);
 			case SERVER_TO_CLIENT:
 				return packetsPlayOut.getOrDefault(packetName, (p, obj) -> new NPacketPlayOutUnset(packetName)).apply(player, nms);
 			case HANDSHAKE:

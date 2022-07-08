@@ -3,7 +3,7 @@ package com.elikill58.negativity.universal;
 import static com.elikill58.negativity.universal.verif.VerificationManager.hasVerifications;
 
 import java.io.IOException;
-import java.sql.Timestamp;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -32,7 +32,7 @@ import com.elikill58.negativity.universal.ban.BanManager;
 import com.elikill58.negativity.universal.ban.BanUtils;
 import com.elikill58.negativity.universal.bedrock.BedrockPlayerManager;
 import com.elikill58.negativity.universal.bypass.BypassManager;
-import com.elikill58.negativity.universal.dataStorage.NegativityAccountStorage;
+import com.elikill58.negativity.universal.database.Database;
 import com.elikill58.negativity.universal.detections.Cheat;
 import com.elikill58.negativity.universal.detections.Cheat.CheatHover;
 import com.elikill58.negativity.universal.detections.Special;
@@ -45,6 +45,8 @@ import com.elikill58.negativity.universal.pluginMessages.AlertMessage;
 import com.elikill58.negativity.universal.pluginMessages.NegativityMessagesManager;
 import com.elikill58.negativity.universal.pluginMessages.ReportMessage;
 import com.elikill58.negativity.universal.report.ReportType;
+import com.elikill58.negativity.universal.storage.account.NegativityAccountStorage;
+import com.elikill58.negativity.universal.storage.proof.NegativityProofStorage;
 import com.elikill58.negativity.universal.utils.SemVer;
 import com.elikill58.negativity.universal.utils.UniversalUtils;
 import com.elikill58.negativity.universal.verif.VerificationManager;
@@ -126,7 +128,7 @@ public class Negativity {
 	 */
 	public static boolean alertMod(ReportType type, Player p, Cheat c, int reliability, String checkName, String proof,
 			CheatHover hover, long amount) {
-		if(!c.isActive() || reliability < 55 || tpsDrop || amount == 0)
+		if(!c.isActive() || reliability < 55 || tpsDrop || amount <= 0)
 			return false;
 		NegativityPlayer np = NegativityPlayer.getNegativityPlayer(p);
 		if (!np.already_blink && c.getKey().equals(CheatKeys.BLINK)) {
@@ -152,26 +154,37 @@ public class Negativity {
 		EventManager.callEvent(alert);
 		if (alert.isCancelled() || !alert.isAlert())
 			return false;
-		np.addWarn(c, reliability, amount);
-		logProof(np, type, p, c, reliability, checkName, proof, ping, amount);
-		if (c.allowKick() && c.getAlertToKick() <= np.getWarn(c)) {
+		long oldWarn = np.addWarn(c, reliability, amount);
+		if(oldWarn == -1) // no warn added
+			return false;
+		if(log && !type.equals(ReportType.INFO))
+			NegativityProofStorage.getStorage().saveProof(new Proof(np, type, c.getKey(), checkName, ping, amount, reliability, proof));
+		if (c.allowKick() && ((long) (oldWarn / c.getAlertToKick())) < ((long) (np.getWarn(c) / c.getAlertToKick()))) { // if reach new alert state
 			PlayerCheatKickEvent kick = new PlayerCheatKickEvent(p, c, reliability);
 			EventManager.callEvent(kick);
-			if (!kick.isCancelled())
+			if (!kick.isCancelled()) {
+				if(Adapter.getAdapter().getConfig().getBoolean("log_alert_with_kick", false)) { // if should log
+					manageAlertCommand(np, type, p, c, reliability);
+					sendAlertMessage(np, alert);
+					// don't run set back options because player will be offline
+				}
 				p.kick(Messages.getMessage(p, "kick.neg_kick", "%cheat%", c.getName(), "%reason%", np.getReason(c), "%playername%", p.getName()));
+				return false;
+			}
 		}
 		if(BanManager.isBanned(np.getUUID())) {
 			Stats.updateStats(StatsType.CHEAT, c.getKey().getKey(), reliability + "");
 			return false;
 		}
 
-		if (BanManager.autoBan && BanUtils.banIfNeeded(np, c, reliability).isSuccess()) {
+		if (BanManager.autoBan && BanUtils.banIfNeeded(np, c, reliability, oldWarn).isSuccess()) {
 			Stats.updateStats(StatsType.CHEAT, c.getKey().getKey(), reliability + "");
 			return false;
 		}
 		manageAlertCommand(np, type, p, c, reliability);
 		AlertSender.getAlertShower().alert(np, alert);
-		c.performSetBack(p);
+		if(c.isSetBack())
+			c.performSetBack(p);
 		return true;
 	}
 
@@ -185,10 +198,16 @@ public class Negativity {
 	 * @param reliability the reliability of detection
 	 */
 	private static void manageAlertCommand(NegativityPlayer np, ReportType type, Player p, Cheat c, int reliability) {
-		Configuration conf = Adapter.getAdapter().getConfig();
-		if(!conf.getBoolean("alert.command.active") || conf.getInt("alert.command.reliability_need") > reliability)
+		Configuration conf = Adapter.getAdapter().getConfig().getSection("alert.command");
+		if(conf == null || !conf.getBoolean("active") || conf.getInt("reliability_need") > reliability)
 			return;
-		for(String s : conf.getStringList("alert.command.run")) {
+		int cooldown = conf.getInt("cooldown", 0);
+		if(cooldown > 0) {
+			if(np.longs.get(CheatKeys.ALL, "alert-cmd-cooldown", 0l) > System.currentTimeMillis())
+				return; // has cooldown
+			np.longs.set(CheatKeys.ALL, "alert-cmd-cooldown", System.currentTimeMillis() + cooldown);
+		}
+		for(String s : conf.getStringList("run")) {
 			Adapter.getAdapter().runConsoleCommand(UniversalUtils.replacePlaceholders(s, "%name%",
 					p.getName(), "%uuid%", p.getUniqueId().toString(), "%cheat_key%", c.getKey().getLowerKey(), "%cheat_name%",
 					c.getName(), "%reliability%", reliability, "%report_type%", type.name(), "%warn%", np.getWarn(c)));
@@ -272,15 +291,6 @@ public class Negativity {
 			e.printStackTrace();
 		}
 	}
-
-	private static void logProof(NegativityPlayer np, ReportType type, Player p, Cheat c, int reliability,
-			String checkName, String proof, int ping, long amount) {
-		if(!log || type.equals(ReportType.INFO))
-			return;
-		String time = new Timestamp(System.currentTimeMillis()).toString().split("\\.")[0];
-		np.logProof(time + ": (" + ping + "ms) " + reliability + "% " + c.getKey() + " x" + amount + " - " + checkName
-				+ " > " + proof + " | Warn: " + np.getWarn(c) + ", Version: " + p.getPlayerVersion().name() + ". TPS: " + getVisualTPS());
-	}
 	
 	/**
 	 * Get visual TPS to put them on file
@@ -322,6 +332,7 @@ public class Negativity {
 			BypassManager.loadBypass();
 			BedrockPlayerManager.init();
 			PlayerModificationsManager.init();
+			NegativityProofStorage.init();
 			VerificationManager.init();
 			WebhookManager.init();
 			ada.registerNewIncomingChannel(ada.getServerVersion().isNewerOrEquals(Version.V1_13) ? "minecraft:brand" : "MC|Brand", (p, msg) -> {
@@ -332,13 +343,13 @@ public class Negativity {
 			if(old != null)
 				old.runAll();
 			else
-				ada.getScheduler().runRepeatingAsync(new FileSaverTimer(), 20);
+				ada.getScheduler().runRepeatingAsync(FileSaverTimer.getInstance(), Duration.ofSeconds(1), Duration.ofSeconds(1), "Negativity FileSaver");
 			if(actualizeInvTimer != null)
 				actualizeInvTimer.cancel();
 			actualizeInvTimer = ada.getScheduler().runRepeating(new ActualizeInvTimer(), 10, 10);
 			if(analyzePacketTimer != null)
 				analyzePacketTimer.cancel();
-			analyzePacketTimer = ada.getScheduler().runRepeating(new AnalyzePacketTimer(), 10, 10);
+			analyzePacketTimer = ada.getScheduler().runRepeating(new AnalyzePacketTimer(), 20, 20);
 			if(config.getBoolean("use-proxy-force", false)) {
 				ProxyCompanionManager.forceCompanion();
 				ada.getLogger().info("Force proxy used without sending searching message.");
@@ -402,5 +413,11 @@ public class Negativity {
 				e.printStackTrace();
 			}
 		}
+	}
+	
+	public static void closeNegativity() {
+		Database.close();
+		Stats.updateStats(StatsType.ONLINE, 0 + "");
+		NegativityPlayer.getAllNegativityPlayers().forEach(NegativityPlayer::destroy);
 	}
 }

@@ -29,7 +29,7 @@ public class Nuker extends Cheat {
 		super(CheatKeys.NUKER, CheatCategory.WORLD, Materials.BEDROCK, CheatDescription.BLOCKS);
 	}
 
-	@Check(name = "distance", description = "Distance between target and breaked block", conditions = CheckConditions.SURVIVAL)
+	@Check(name = "distance", description = "Distance between target and breaked block", conditions = { CheckConditions.SURVIVAL, CheckConditions.NO_FLY })
 	public void onBlockBreak(BlockBreakEvent e, NegativityPlayer np) {
 		Player p = e.getPlayer();
 		Block b = e.getBlock();
@@ -64,20 +64,21 @@ public class Nuker extends Cheat {
 		});
 	}
 	
-	@Check(name = "time", description = "Time between 2 block break", conditions = CheckConditions.SURVIVAL)
+	@Check(name = "time", description = "Time between 2 block break", conditions = { CheckConditions.SURVIVAL, CheckConditions.NO_FLY })
 	public void onBlockBreakTime(BlockBreakEvent e, NegativityPlayer np) {
 		Player p = e.getPlayer();
 		Block b = e.getBlock();
 		if(p.hasPotionEffect(PotionEffectType.HASTE) || b == null || !b.getType().isSolid() || isInstantBlock(b.getType().getId()))
 			return;
-		long temp = System.currentTimeMillis(), dis = temp - np.lastBlockBreak;
+		long lastBreak = np.longs.get(getKey(), "time", 0l);
+		long temp = System.currentTimeMillis(), dis = temp - lastBreak;
 		if(dis < 50 && !ItemUtils.hasDigSpeedEnchant(p.getItemInHand()) && !p.hasPotionEffect(PotionEffectType.HASTE)) {
 			boolean mayCancel = Negativity.alertMod(ReportType.VIOLATION, p, this, (int) (100 - dis), "time",
-					"Type: " + e.getBlock().getType().getId() + ". Last: " + np.lastBlockBreak + ", Now: " + temp + ", diff: " + dis, hoverMsg("breaked_in", "%time%", dis));
+					"Type: " + e.getBlock().getType().getId() + ". Last: " + lastBreak + ", Now: " + temp + ", diff: " + dis, hoverMsg("breaked_in", "%time%", dis));
 			if(isSetBack() && mayCancel)
 				e.setCancelled(true);
 		}
-		np.lastBlockBreak = temp;
+		np.longs.set(getKey(), "time", temp);
 	}
 	
 	private boolean isInstantBlock(String m) {

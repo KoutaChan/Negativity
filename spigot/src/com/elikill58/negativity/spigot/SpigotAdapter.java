@@ -93,7 +93,7 @@ public class SpigotAdapter extends Adapter {
 	@Override
 	public void debug(String msg) {
 		if (getConfig().getBoolean("debug", false))
-			pl.getLogger().info(msg);
+			pl.getLogger().info("[Debug] " + msg);
 	}
 
 	@Override
@@ -160,10 +160,7 @@ public class SpigotAdapter extends Adapter {
 
 	@Override
 	public List<UUID> getOnlinePlayersUUID() {
-		List<UUID> list = new ArrayList<>();
-		for (org.bukkit.entity.Player temp : Utils.getOnlinePlayers())
-			list.add(temp.getUniqueId());
-		return list;
+		return Utils.getOnlinePlayers().stream().map(org.bukkit.entity.Player::getUniqueId).collect(Collectors.toList());
 	}
 
 	@Override
